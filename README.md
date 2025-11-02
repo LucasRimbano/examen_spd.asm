@@ -31,7 +31,7 @@ int.ASM        → Juego sobre Interrupciones
 trol.ASM         → Juego sobre Unidad de Control
 ea.ASM         → Juego sobre Entradas/Salidas
 color.ASM            → Cambio de color en pantalla
-r22.asm  → convertidor de regto ascuii
+r22a.asm  → convertidor de regto ascuii
 ```
 
 ---
@@ -59,6 +59,7 @@ tasm jugar_int.asm
 tasm jugar_uc.asm
 tasm jugar_io.asm
 tasm color.asm
+tasm r22a.asm
 ```
 
 Cada uno debe generar su respectivo `.OBJ` sin errores.
@@ -66,7 +67,7 @@ Cada uno debe generar su respectivo `.OBJ` sin errores.
 3️⃣ **Enlazar todo el programa principal:**
 
 ```dos
-tlink tp.obj imp.obj leer_opcion_menu.obj sonido_presentacion.obj sonido_error.obj jugar_mem.obj jugar_alu.obj jugar_int.obj jugar_uc.obj jugar_io.obj color.obj
+tlink tp.obj imp.obj leer_opcion_menu.obj sonido_presentacion.obj sonido_error.obj jugar_mem.obj jugar_alu.obj jugar_int.obj jugar_uc.obj jugar_io.obj color.obj r22a.obj
 ```
 
 Esto produce el ejecutable:
