@@ -1,3 +1,47 @@
+## 🧠 2️⃣ INTRODUCCIÓN DEL PROYECTO
+
+**Trabajo Práctico Final – Simulacro de Parcial SPD (Sistemas con Procesamiento de Datos)**
+**Universidad Nacional de San Martín (UNSAM)**
+**Cátedra: SPD - Microprocesadores y Periféricos**
+
+---
+
+### 📖 Descripción
+
+El presente trabajo práctico tiene como objetivo **simular un examen interactivo de repaso sobre la arquitectura del CPU y sus componentes internos**, utilizando **lenguaje ensamblador del procesador Intel 8086**.
+
+El programa está dividido en **cinco módulos principales**, cada uno representando una unidad del CPU:
+
+1. **Unidad Aritmético-Lógica (ALU)**
+2. **Memoria Principal (RAM)**
+3. **Interrupciones (INT)**
+4. **Unidad de Control (UC)**
+5. **Entradas / Salidas (E/S)**
+
+Cada módulo presenta al usuario una serie de **preguntas de opción múltiple (A/B/C)**, simulando la lógica de un **parcial real**, pero con un entorno interactivo, sonoro y visual.
+
+---
+
+### 🎮 Dinámica del Juego
+
+* El jugador selecciona una de las 5 unidades.
+* Cada unidad contiene **5 preguntas técnicas**.
+* Se responde con las letras **A, B o C** (validadas por la función `leer_caracter_abc`).
+* Si el usuario responde correctamente, avanza a la siguiente pregunta.
+* Si se equivoca, el sistema reproduce un sonido de error y muestra una pista.
+* Al finalizar todas las unidades, se muestra un mensaje final de agradecimiento.
+
+---
+
+### 🔊 Funcionalidades destacadas
+
+✅ **Sonidos** tipo arcade mediante el altavoz del sistema (puerto `42h`).
+✅ **Colores retro** en modo texto (BIOS `int 10h`).
+✅ **Librerías externas** organizadas modularmente.
+✅ **Compatibilidad total con TASM/TLINK y DOSBox**.
+✅ **Posibilidad de extensión a modo gráfico (13h)** para mostrar imágenes `.BMP` al ganar o perder.
+
+---
 1️⃣ **Guía técnica (TASM, TLINK y ejecución)**
 2️⃣ **Introducción formal de tu simulacro de parcial**
 
@@ -117,56 +161,3 @@ tp.exe
 Así, con solo escribir `TP`, se ejecuta la intro y el juego completo.
 
 ---
-
-## 🧠 2️⃣ INTRODUCCIÓN DEL PROYECTO
-
-**Trabajo Práctico Final – Simulacro de Parcial SPD (Sistemas con Procesamiento de Datos)**
-**Universidad Nacional de San Martín (UNSAM)**
-**Cátedra: SPD - Microprocesadores y Periféricos**
-
----
-
-### 📖 Descripción
-
-El presente trabajo práctico tiene como objetivo **simular un examen interactivo de repaso sobre la arquitectura del CPU y sus componentes internos**, utilizando **lenguaje ensamblador del procesador Intel 8086**.
-
-El programa está dividido en **cinco módulos principales**, cada uno representando una unidad del CPU:
-
-1. **Unidad Aritmético-Lógica (ALU)**
-2. **Memoria Principal (RAM)**
-3. **Interrupciones (INT)**
-4. **Unidad de Control (UC)**
-5. **Entradas / Salidas (E/S)**
-
-Cada módulo presenta al usuario una serie de **preguntas de opción múltiple (A/B/C)**, simulando la lógica de un **parcial real**, pero con un entorno interactivo, sonoro y visual.
-
----
-
-### 🎮 Dinámica del Juego
-
-* El jugador selecciona una de las 5 unidades.
-* Cada unidad contiene **5 preguntas técnicas**.
-* Se responde con las letras **A, B o C** (validadas por la función `leer_caracter_abc`).
-* Si el usuario responde correctamente, avanza a la siguiente pregunta.
-* Si se equivoca, el sistema reproduce un sonido de error y muestra una pista.
-* Al finalizar todas las unidades, se muestra un mensaje final de agradecimiento.
-
----
-
-### 🔊 Funcionalidades destacadas
-
-✅ **Sonidos** tipo arcade mediante el altavoz del sistema (puerto `42h`).
-✅ **Colores retro** en modo texto (BIOS `int 10h`).
-✅ **Librerías externas** organizadas modularmente.
-✅ **Compatibilidad total con TASM/TLINK y DOSBox**.
-✅ **Posibilidad de extensión a modo gráfico (13h)** para mostrar imágenes `.BMP` al ganar o perder.
-
----
-
-### 💾 Conclusión
-
-Este trabajo combina conceptos de **programación estructurada en ASM**, **manejo de periféricos**, **interrupciones del BIOS/DOS**, **control de flujo y estructuras lógicas**, y **diseño modular**, demostrando el dominio de la arquitectura del **procesador Intel 8086** y su aplicación práctica en un entorno didáctico interactivo.
-
----
-
-¿Querés que ahora te prepare el README también en formato **.TXT para incluir en la entrega (listo para DOS)** con formato 80x25 y salto de línea DOS (`0Dh,0Ah`)? Puedo generarlo directamente.
