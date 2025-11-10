@@ -1,211 +1,244 @@
-;===========================================================
-; UNIDAD DE INTERRUPCIONES - Examen tipo parcial (versión estable)
-;-----------------------------------------------------------
-; Usa librerías externas:
-;   imprimir_pantalla
-;   leer_caracter_abc
-;   sonido_error
-;   sonido_presentacion
-;   reg2ascii
-;-----------------------------------------------------------
-; 5 preguntas, 3 opciones (A, B, C)
-;===========================================================
-
 .8086
 .model small
 .stack 100h
 
 extrn imprimir_pantalla:proc
-extrn leer_caracter_abc:proc
 extrn sonido_error:proc
 extrn sonido_presentacion:proc
-extrn reg2ascii:proc
+extrn leer_caracter_abc:proc
+extrn actualizar_puntaje:proc
+extrn puntaje_total:byte
+extrn cls_azul_10h:proc
+extrn cambiar_color_amarillo:proc
 
 .data
-msg_intro db 0dh,0ah,"[UNIDAD: INTERRUPCIONES]",0dh,0ah
-          db "Responde las 5 preguntas del parcial (A, B o C).",0dh,0ah,'$'
+; Título SOLO
+msg_intro      db 0dh,0ah,"[UNIDAD: INTERRUPCIONES]",0dh,0ah,'$'
 
-msg_correcto db 0dh,0ah,"✅ Correcto!",0dh,0ah,'$'
-msg_incorrecto db 0dh,0ah,"❌ Incorrecto!",0dh,0ah,'$'
-msg_final db 0dh,0ah,"Puntaje final: ",'$'
-msg_aprobado db 0dh,0ah,"Excelente! Manejás las señales del CPU como un experto en interrupciones ⚡",0dh,0ah,'$'
-msg_reprobo db 0dh,0ah,"Necesitás repasar las ISR, los flags y las líneas de control 🧠",0dh,0ah,'$'
+msg_correcto   db 0dh,0ah,"Correcto!",0dh,0ah,'$'
+msg_incorrecto db 0dh,0ah,"Incorrecto...",0dh,0ah,'$'
+msg_final      db 0dh,0ah,"Fin de la unidad de INTERRUPCIONES!",0dh,0ah,'$'
+msg_aprobado   db 0dh,0ah,"Excelente! Dominio solido de las interrupciones.",0dh,0ah,'$'
+msg_reprobo    db 0dh,0ah,"Repasar interrupciones.",0dh,0ah,'$'
+nl             db 0dh,0ah,'$'
 
-preg1 db 0dh,0ah,"1) ¿Qué es una interrupción?",0dh,0ah
-      db "A) Una orden de salto condicional",0dh,0ah
-      db "B) Una señal que detiene temporalmente la ejecución normal del CPU",0dh,0ah
-      db "C) Una instrucción de E/S",0dh,0ah,'$'
+; Preguntas + opciones separadas
+preg1 db 0dh,0ah,"1) Que hace una interrupcion?",0dh,0ah,'$'
+opc1  db "A) Detiene el CPU permanentemente",0dh,0ah
+      db "B) Suspende el flujo y atiende un evento",0dh,0ah
+      db "C) Reinicia el programa desde cero",0dh,0ah,'$'
+resp1 db 'B'
 
-preg2 db 0dh,0ah,"2) ¿Qué tipo de interrupciones puede enmascararse?",0dh,0ah
-      db "A) Las de software",0dh,0ah
-      db "B) Las de hardware enmascarables",0dh,0ah
-      db "C) Las no enmascarables (NMI)",0dh,0ah,'$'
+preg2 db 0dh,0ah,"2) Que instruccion finaliza una ISR?",0dh,0ah,'$'
+opc2  db "A) RET",0dh,0ah
+      db "B) IRET",0dh,0ah
+      db "C) JMP",0dh,0ah,'$'
+resp2 db 'B'
 
-preg3 db 0dh,0ah,"3) ¿Qué instrucción se usa para habilitar interrupciones?",0dh,0ah
-      db "A) CLI",0dh,0ah
-      db "B) STI",0dh,0ah
-      db "C) HLT",0dh,0ah,'$'
+preg3 db 0dh,0ah,"3) Que hace la instruccion STI?",0dh,0ah,'$'
+opc3  db "A) Deshabilita las interrupciones",0dh,0ah
+      db "B) Habilita las interrupciones enmascarables",0dh,0ah
+      db "C) Llama a una ISR directamente",0dh,0ah,'$'
+resp3 db 'B'
 
-preg4 db 0dh,0ah,"4) ¿Qué debe contener una rutina de servicio (ISR)?",0dh,0ah
-      db "A) Código para manejar el evento y un IRET al final",0dh,0ah
-      db "B) Solo datos del evento",0dh,0ah
-      db "C) Un bucle infinito",0dh,0ah,'$'
+preg4 db 0dh,0ah,"4) Que tipo de interrupcion NO puede ser enmascarada?",0dh,0ah,'$'
+opc4  db "A) NMI",0dh,0ah
+      db "B) INT 21h",0dh,0ah
+      db "C) INT 10h",0dh,0ah,'$'
+resp4 db 'A'
 
-preg5 db 0dh,0ah,"5) ¿Qué hace la instrucción IRET?",0dh,0ah
-      db "A) Retorna de una interrupción restaurando flags y punteros",0dh,0ah
-      db "B) Detiene el CPU",0dh,0ah
-      db "C) Reinicia la pila",0dh,0ah,'$'
-
-nroAscii db '000','$'
+preg5 db 0dh,0ah,"5) Que registro usa el CPU para saber si puede atender una interrupcion?",0dh,0ah,'$'
+opc5  db "A) AX",0dh,0ah
+      db "B) FLAGS",0dh,0ah
+      db "C) CS",0dh,0ah,'$'
+resp5 db 'B'
 
 .code
-public jugar_int
 
+
+; Helper: limpia + HUD + título + (pregunta + opciones)
+; EN: DX = ptr pregunta ($) | BX = ptr opciones ($)
+
+int_screen_preg_y_opc proc
+    push ax
+    push bx
+    push dx
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+    lea dx, msg_intro
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx              ; pregunta
+    call imprimir_pantalla
+    mov dx, bx          ; opciones
+    call imprimir_pantalla
+    pop bx
+    pop ax
+    ret
+int_screen_preg_y_opc endp
+
+; Helper: limpia + HUD + título + estado + línea + (pregunta+opc)
+; EN: DX = ptr estado ($) | SI = ptr pregunta ($) | BX = ptr opciones ($)
+
+int_screen_status_y_preg proc
+    push ax
+    push bx
+    push si
+    push dx
+    call cls_azul_10h
+    call actualizar_puntaje
+    lea dx, msg_intro
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx              ; estado (Correcto/Incorrecto)
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    mov dx, si          ; pregunta
+    call imprimir_pantalla
+    mov dx, bx          ; opciones
+    call imprimir_pantalla
+    pop si
+    pop bx
+    pop ax
+    ret
+int_screen_status_y_preg endp
+
+public jugar_int
 jugar_int proc
     push ax
     push bx
-    push cx
     push dx
+    push si
 
-    mov bl, 0              ; contador de aciertos
+    mov bl, 0                    ; aciertos locales (0..5)
 
-    lea dx, msg_intro
-    call imprimir_pantalla
-    call sonido_presentacion
-
-;-------------------------
-; PREGUNTA 1
-;-------------------------
+    ; Pantalla inicial con P1
     lea dx, preg1
-    call imprimir_pantalla
+    lea bx, opc1
+    call int_screen_preg_y_opc
+    call sonido_presentacion
+
+;---------------- PREGUNTA 1 ----------------
     call leer_caracter_abc
-    xor ah, ah
-    cmp al, 'B'
-    je bien1
+    cmp al, [resp1]
+    je  int_ok1
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea si, preg2
+    lea bx, opc2
+    call int_screen_status_y_preg
+    jmp int_p2
+int_ok1:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea si, preg2
+    lea bx, opc2
+    call int_screen_status_y_preg
+
+;---------------- PREGUNTA 2 ----------------
+int_p2:
+    call leer_caracter_abc
+    cmp al, [resp2]
+    je  int_ok2
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea si, preg3
+    lea bx, opc3
+    call int_screen_status_y_preg
+    jmp int_p3
+int_ok2:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea si, preg3
+    lea bx, opc3
+    call int_screen_status_y_preg
+
+;---------------- PREGUNTA 3 ----------------
+int_p3:
+    call leer_caracter_abc
+    cmp al, [resp3]
+    je  int_ok3
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea si, preg4
+    lea bx, opc4
+    call int_screen_status_y_preg
+    jmp int_p4
+int_ok3:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea si, preg4
+    lea bx, opc4
+    call int_screen_status_y_preg
+
+;---------------- PREGUNTA 4 ----------------
+int_p4:
+    call leer_caracter_abc
+    cmp al, [resp4]
+    je  int_ok4
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea si, preg5
+    lea bx, opc5
+    call int_screen_status_y_preg
+    jmp int_p5
+int_ok4:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea si, preg5
+    lea bx, opc5
+    call int_screen_status_y_preg
+
+;---------------- PREGUNTA 5 ----------------
+int_p5:
+    call leer_caracter_abc
+    cmp al, [resp5]
+    je  int_ok5
     call sonido_error
     lea dx, msg_incorrecto
     call imprimir_pantalla
-    jmp p2
-bien1:
+    jmp int_final
+int_ok5:
     inc bl
-    call sonido_presentacion
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
     lea dx, msg_correcto
     call imprimir_pantalla
 
-;-------------------------
-; PREGUNTA 2
-;-------------------------
-p2:
-    lea dx, preg2
-    call imprimir_pantalla
-    call leer_caracter_abc
-    xor ah, ah
-    cmp al, 'B'
-    je bien2
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p3
-bien2:
-    inc bl
-    call sonido_presentacion
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;-------------------------
-; PREGUNTA 3
-;-------------------------
-p3:
-    lea dx, preg3
-    call imprimir_pantalla
-    call leer_caracter_abc
-    xor ah, ah
-    cmp al, 'B'
-    je bien3
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p4
-bien3:
-    inc bl
-    call sonido_presentacion
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;-------------------------
-; PREGUNTA 4
-;-------------------------
-p4:
-    lea dx, preg4
-    call imprimir_pantalla
-    call leer_caracter_abc
-    xor ah, ah
-    cmp al, 'A'
-    je bien4
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p5
-bien4:
-    inc bl
-    call sonido_presentacion
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;-------------------------
-; PREGUNTA 5
-;-------------------------
-p5:
-    lea dx, preg5
-    call imprimir_pantalla
-    call leer_caracter_abc
-    xor ah, ah
-    cmp al, 'A'
-    je bien5
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp resultado
-bien5:
-    inc bl
-    call sonido_presentacion
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;-------------------------
-; RESULTADO FINAL
-;-------------------------
-resultado:
+;---------------- FINAL ---------------------
+int_final:
+    call cls_azul_10h
+    call actualizar_puntaje
     lea dx, msg_final
     call imprimir_pantalla
-
-    xor ah, ah
-    mov al, bl
-    mov bx, offset nroAscii
-    call reg2ascii
-
-    lea dx, nroAscii
-    call imprimir_pantalla
-
-    mov dl, '/'
-    mov ah, 02h
-    int 21h
-    mov dl, '5'
-    int 21h
+    call actualizar_puntaje
 
     cmp bl, 3
-    jb reprobo
+    jb  int_repro
     lea dx, msg_aprobado
     call imprimir_pantalla
-    jmp fin
+    jmp int_fin
 
-reprobo:
+int_repro:
     lea dx, msg_reprobo
     call imprimir_pantalla
 
-fin:
+int_fin:
+    mov al, bl                 ; devolver puntaje en AL
+    pop si
     pop dx
-    pop cx
     pop bx
     pop ax
     ret
