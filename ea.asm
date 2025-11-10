@@ -21,41 +21,44 @@ extrn leer_caracter_abc:proc
 extrn sonido_error:proc
 extrn sonido_presentacion:proc
 extrn reg2ascii:proc
+extrn actualizar_puntaje:proc
+extrn puntaje_total:byte
+extrn cls_azul_10h:proc
+extrn cambiar_color_amarillo:proc
 
 .data
-msg_intro db 0dh,0ah,"[UNIDAD: ENTRADA / SALIDA (E/S)]",0dh,0ah
-          db "Responde las 5 preguntas del parcial (A, B o C).",0dh,0ah,'$'
+; Título SOLO (sin textos extra)
+msg_intro db 0dh,0ah,"[UNIDAD: ENTRADA / SALIDA (E/S)]",0dh,0ah,'$'
 
-msg_correcto db 0dh,0ah,"✅ Correcto!",0dh,0ah,'$'
-msg_incorrecto db 0dh,0ah,"❌ Incorrecto!",0dh,0ah,'$'
-msg_final db 0dh,0ah,"Puntaje final: ",'$'
-msg_aprobado db 0dh,0ah,"Excelente! Dominás la comunicación del CPU con los periféricos 🔌",0dh,0ah,'$'
-msg_reprobo db 0dh,0ah,"Necesitás repasar los modos de E/S y el mapeo de direcciones ⚙️",0dh,0ah,'$'
+msg_correcto   db 0dh,0ah,"Correcto!",0dh,0ah,'$'
+msg_incorrecto db 0dh,0ah,"Incorrecto!",0dh,0ah,'$'
+msg_final      db 0dh,0ah,"Puntaje final: ",'$'
+msg_aprobado   db 0dh,0ah,"Excelente! Dominas la comunicacion del CPU con los perifericos.",0dh,0ah,'$'
+msg_reprobo    db 0dh,0ah,"Necesitas repasar los modos de E/S y el mapeo de direcciones.",0dh,0ah,'$'
+nl             db 0dh,0ah,'$'
 
-;--------------------------------------------
-; Preguntas
-;--------------------------------------------
-preg1 db 0dh,0ah,"1) ¿Cuál es la función de la Unidad de Entrada/Salida?",0dh,0ah
-      db "A) Realizar cálculos matemáticos",0dh,0ah
-      db "B) Permitir la comunicación entre CPU y periféricos",0dh,0ah
+; Preguntas (con opciones, terminan en '$')
+preg1 db 0dh,0ah,"1) Cual es la funcion de la Unidad de Entrada/Salida?",0dh,0ah
+      db "A) Realizar calculos matematicos",0dh,0ah
+      db "B) Permitir la comunicacion entre CPU y perifericos",0dh,0ah
       db "C) Controlar la memoria RAM",0dh,0ah,'$'
 
-preg2 db 0dh,0ah,"2) ¿Qué es el mapeo a memoria?",0dh,0ah
+preg2 db 0dh,0ah,"2) Que es el mapeo a memoria?",0dh,0ah
       db "A) Los dispositivos comparten espacio de direcciones con la memoria",0dh,0ah
-      db "B) Cada periférico tiene un canal exclusivo",0dh,0ah
+      db "B) Cada periferico tiene un canal exclusivo",0dh,0ah
       db "C) La memoria se guarda en disco",0dh,0ah,'$'
 
-preg3 db 0dh,0ah,"3) ¿Qué diferencia hay entre mapeo aislado y mapeo a memoria?",0dh,0ah
+preg3 db 0dh,0ah,"3) Que diferencia hay entre mapeo aislado y mapeo a memoria?",0dh,0ah
       db "A) En el aislado la CPU usa instrucciones especiales IN/OUT",0dh,0ah
       db "B) En el de memoria se usa una EEPROM",0dh,0ah
       db "C) Son equivalentes",0dh,0ah,'$'
 
-preg4 db 0dh,0ah,"4) ¿Qué línea indica si una dirección pertenece a E/S o a memoria?",0dh,0ah
+preg4 db 0dh,0ah,"4) Que linea indica si una direccion pertenece a E/S o a memoria?",0dh,0ah
       db "A) M/!IO",0dh,0ah
       db "B) RD",0dh,0ah
       db "C) WR",0dh,0ah,'$'
 
-preg5 db 0dh,0ah,"5) ¿Qué instrucción permite leer un dato de un puerto de E/S?",0dh,0ah
+preg5 db 0dh,0ah,"5) Que instruccion permite leer un dato de un puerto de E/S?",0dh,0ah
       db "A) MOV",0dh,0ah
       db "B) IN",0dh,0ah
       db "C) OUT",0dh,0ah,'$'
@@ -63,142 +66,189 @@ preg5 db 0dh,0ah,"5) ¿Qué instrucción permite leer un dato de un puerto de E/
 nroAscii db '000','$'
 
 .code
-public jugar_io
 
+
+; Helper: limpia + HUD + título + pregunta
+; EN: DX = ptr a PREGUNTA ($)
+
+io_screen_pregunta proc
+    push ax
+    push dx
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+    lea dx, msg_intro
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx
+    call imprimir_pantalla
+    pop ax
+    ret
+io_screen_pregunta endp
+
+
+; Helper: limpia + HUD + título + estado + pregunta siguiente
+; EN: DX = ptr a MENSAJE (Correcto/Incorrecto, $)
+;     BX = ptr a PREGUNTA SIGUIENTE ($)
+
+io_screen_next_with_status proc
+    push ax
+    push bx
+    push dx
+    call cls_azul_10h
+    call actualizar_puntaje
+    lea dx, msg_intro
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx                 ; estado
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    mov dx, bx             ; pregunta siguiente
+    call imprimir_pantalla
+    pop bx
+    pop ax
+    ret
+io_screen_next_with_status endp
+
+public jugar_io
 jugar_io proc
     push ax
     push bx
     push cx
     push dx
 
-    mov bl, 0              ; Contador de respuestas correctas
+    mov bl, 0
 
-    lea dx, msg_intro
-    call imprimir_pantalla
-    call sonido_presentacion
-
-;=============================
-; PREGUNTA 1
-;=============================
+    ; Pantalla inicial con P1
     lea dx, preg1
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'B'
-    je bien1
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p2
-bien1:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;=============================
-; PREGUNTA 2
-;=============================
-p2:
-    lea dx, preg2
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien2
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p3
-bien2:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;=============================
-; PREGUNTA 3
-;=============================
-p3:
-    lea dx, preg3
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien3
+    call io_screen_pregunta
     call sonido_presentacion
-    lea dx, msg_correcto
-    call imprimir_pantalla
-    jmp p4
-bien3:
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p4
 
-;=============================
-; PREGUNTA 4
-;=============================
-p4:
-    lea dx, preg4
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien4
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p5
-bien4:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
-
-;=============================
-; PREGUNTA 5
-;=============================
-p5:
-    lea dx, preg5
-    call imprimir_pantalla
+;-------------------- PREGUNTA 1 --------------------
     call leer_caracter_abc
     cmp al, 'B'
-    je bien5
+    je  io_ok1
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea bx, preg2
+    call io_screen_next_with_status
+    jmp io_p2
+io_ok1:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea bx, preg2
+    call io_screen_next_with_status
+
+;-------------------- PREGUNTA 2 --------------------
+io_p2:
+    call leer_caracter_abc
+    cmp al, 'A'
+    je  io_ok2
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea bx, preg3
+    call io_screen_next_with_status
+    jmp io_p3
+io_ok2:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea bx, preg3
+    call io_screen_next_with_status
+
+;-------------------- PREGUNTA 3 --------------------
+io_p3:
+    call leer_caracter_abc
+    cmp al, 'A'
+    je  io_ok3
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea bx, preg4
+    call io_screen_next_with_status
+    jmp io_p4
+io_ok3:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea bx, preg4
+    call io_screen_next_with_status
+
+;-------------------- PREGUNTA 4 --------------------
+io_p4:
+    call leer_caracter_abc
+    cmp al, 'A'
+    je  io_ok4
+    call sonido_error
+    lea dx, msg_incorrecto
+    lea bx, preg5
+    call io_screen_next_with_status
+    jmp io_p5
+io_ok4:
+    inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_correcto
+    lea bx, preg5
+    call io_screen_next_with_status
+
+;-------------------- PREGUNTA 5 --------------------
+io_p5:
+    call leer_caracter_abc
+    cmp al, 'B'
+    je  io_ok5
     call sonido_error
     lea dx, msg_incorrecto
     call imprimir_pantalla
-    jmp resultado
-bien5:
+    jmp io_result
+io_ok5:
     inc bl
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
     lea dx, msg_correcto
     call imprimir_pantalla
 
-;=============================
-; RESULTADO FINAL
-;=============================
-resultado:
+;-------------------- RESULTADO FINAL --------------------
+io_result:
+    call cls_azul_10h
+    call actualizar_puntaje
     lea dx, msg_final
     call imprimir_pantalla
 
-    xor ah, ah
-    mov al, bl
+    ; Mostrar BL como ASCII (reg2ascii: DL=valor, BX=buffer)
+    mov dl, bl
     mov bx, offset nroAscii
     call reg2ascii
-
     lea dx, nroAscii
     call imprimir_pantalla
 
+    ; imprimir "/5"
     mov dl, '/'
     mov ah, 02h
     int 21h
     mov dl, '5'
     int 21h
 
+    ; Aprobado/Reprobado
     cmp bl, 3
-    jb reprobo
+    jb  io_repro
     lea dx, msg_aprobado
     call imprimir_pantalla
-    jmp fin
+    jmp io_fin
 
-reprobo:
+io_repro:
     lea dx, msg_reprobo
     call imprimir_pantalla
 
-fin:
+io_fin:
+    mov al, bl          ; devolver puntaje (0..5)
+
     pop dx
     pop cx
     pop bx
