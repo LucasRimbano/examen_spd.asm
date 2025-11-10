@@ -16,193 +16,289 @@
 .model small
 .stack 100h
 
-extrn imprimir_pantalla:proc
-extrn leer_caracter_abc:proc
-extrn sonido_error:proc
-extrn sonido_presentacion:proc
-extrn reg2ascii:proc
-
 .data
-msg_intro db 0dh,0ah,"[UNIDAD: ARITMETICO-LOGICA (ALU)]",0dh,0ah
-          db "Responde las 5 preguntas del parcial (A, B o C).",0dh,0ah,'$'
+cartel_bienvenida db "Selecciona una unidad para comenzar:",0dh,0ah,'$'
+opcion_1 db "1. UNIDAD ARITMETICO-LOGICA (ALU)",0dh,0ah,'$'
+opcion_2 db "2. MEMORIA PRINCIPAL",0dh,0ah,'$'
+opcion_3 db "3. INTERRUPCIONES",0dh,0ah,'$'
+opcion_4 db "4. UNIDAD DE CONTROL",0dh,0ah,'$'
+opcion_5 db "5. ENTRADAS / SALIDAS",0dh,0ah,'$'
 
-msg_correcto db 0dh,0ah,"✅ Correcto!",0dh,0ah,'$'
-msg_incorrecto db 0dh,0ah,"❌ Incorrecto!",0dh,0ah,'$'
-msg_final db 0dh,0ah,"Puntaje final: ",'$'
-msg_aprobado db 0dh,0ah,"Excelente! Dominas la logica y las operaciones de la CPU ",0dh,0ah,'$'
-msg_reprobo db 0dh,0ah,"Necesitas repasar operaciones lógicas y aritméticas de la ALU ",0dh,0ah,'$'
+cartel db 0dh,0ah,"Mucha suerte Rick...",0dh,0ah,'$'
+msg_error db 0dh,0ah,"Opcion invalida. Solo del 1 al 5.",0dh,0ah,'$'
+msg_repetido db 0dh,0ah,"Esa unidad ya fue completada. Elegi otra, bro.",0dh,0ah,'$'
+msg_final db 0dh,0ah,"Felicitaciones! Completaste todas las unidades de SPD!",0dh,0ah,'$'
+msg_total db 0dh,0ah,"Tu puntaje final es: ",'$'
+msg_aprobado db 0dh,0ah,"Aprobado! Excelente repaso de SPD!",0dh,0ah,'$'
+msg_desaprobado db 0dh,0ah,"Desaprobado. Segui estudiando, Rick.",0dh,0ah,'$'
+msg_salir db 0dh,0ah,"Gracias por jugar y repasar SPD!",0dh,0ah,'$'
 
-;--------------------------------------------
-; Preguntas
-;--------------------------------------------
-preg1 db 0dh,0ah,"1) ¿Qué función cumple la ALU?",0dh,0ah
-      db "A) Controlar la memoria",0dh,0ah
-      db "B) Ejecutar operaciones aritméticas y lógicas",0dh,0ah
-      db "C) Coordinar periféricos",0dh,0ah,'$'
-
-preg2 db 0dh,0ah,"2) ¿Qué registros intervienen en las operaciones de la ALU?",0dh,0ah
-      db "A) AX, BX, CX, DX",0dh,0ah
-      db "B) CS, DS, SS, ES",0dh,0ah
-      db "C) IP, SP, BP",0dh,0ah,'$'
-
-preg3 db 0dh,0ah,"3) ¿Qué hace el bit de 'carry' (CF)?",0dh,0ah
-      db "A) Indica error en el programa",0dh,0ah
-      db "B) Señala desbordamiento de suma/resta",0dh,0ah
-      db "C) Activa la memoria",0dh,0ah,'$'
-
-preg4 db 0dh,0ah,"4) ¿Qué instrucción realiza una suma en ensamblador?",0dh,0ah
-      db "A) ADD",0dh,0ah
-      db "B) CMP",0dh,0ah
-      db "C) MOV",0dh,0ah,'$'
-
-preg5 db 0dh,0ah,"5) ¿Qué instrucción realiza una comparación lógica?",0dh,0ah
-      db "A) CMP",0dh,0ah
-      db "B) XOR",0dh,0ah
-      db "C) JMP",0dh,0ah,'$'
-
-nroAscii db '000','$'
+puntaje_total db 0
+public puntaje_total
+nro_ascii db '000','$'          
+unidades_jugadas db 0,0,0,0,0  
+completadas db 0              
+seg_dgroup dw ?
+public seg_dgroup
 
 .code
-public jugar_alu
+extrn imprimir_pantalla:proc
+extrn leer_opcion_menu:proc
+extrn sonido_presentacion:proc
+extrn sonido_error:proc
+extrn cambiar_color_amarillo:proc
+extrn cambiar_color_gris:proc
+extrn reg2ascii:proc
+extrn jugar_alu:proc
+extrn jugar_mem:proc
+extrn jugar_int:proc
+extrn jugar_uc:proc
+extrn jugar_io:proc
+extrn intro:proc
+extrn actualizar_puntaje:proc
+extrn cls_azul_10h:proc
+extrn cls_attr_10h:proc  
 
-jugar_alu proc
-    push ax
-    push bx
-    push cx
-    push dx
 
-    mov bl, 0              ; Contador de respuestas correctas
+; PROGRAMA PRINCIPAL
 
-    lea dx, msg_intro
+main proc
+    mov ax, @data
+    mov ds, ax
+
+    mov [seg_dgroup], ax
+   
+
+    call intro
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+
+    lea dx, cartel_bienvenida
     call imprimir_pantalla
     call sonido_presentacion
 
-;=============================
-; PREGUNTA 1
-;=============================
-    lea dx, preg1
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'B'
-    je bien1
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p2
-bien1:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+;--------------------- LOOP PRINCIPAL -----------------------
+menu_principal:
+    mov al, [completadas]
+    cmp al, 5
+    je  __to_fin_juego
+    jmp short continuar_menu
+__to_fin_juego:
+    jmp fin_juego
 
-;=============================
-; PREGUNTA 2
-;=============================
-p2:
-    lea dx, preg2
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien2
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p3
-bien2:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+continuar_menu:
+    call mostrar_menu_dinamico
+    call leer_opcion_menu            ; AL = '1'..'5'
 
-;=============================
-; PREGUNTA 3
-;=============================
-p3:
-    lea dx, preg3
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'B'
-    je bien3
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p4
-bien3:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    ; validar '1'..'5'
+    cmp al, '1'
+    jb  __to_op_inv
+    cmp al, '5'
+    jbe __ok_range
+__to_op_inv:
+    jmp opcion_invalida
+__ok_range:
 
-;=============================
-; PREGUNTA 4
-;=============================
-p4:
-    lea dx, preg4
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien4
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p5
-bien4:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    ; AL -> índice 0..4
+    sub al, '1'
+    mov bl, al
+    xor bh, bh
+    shl bx, 1
 
-;=============================
-; PREGUNTA 5
-;=============================
-p5:
-    lea dx, preg5
-    call imprimir_pantalla
-    call leer_caracter_abc
-    cmp al, 'A'
-    je bien5
-    call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp resultado
-bien5:
-    inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    ; jump table (near offsets en CS)
+    jmp  word ptr cs:[op_table+bx]
 
-;=============================
-; RESULTADO FINAL
-;=============================
-resultado:
+op_table:
+    dw offset unidad_1
+    dw offset unidad_2
+    dw offset unidad_3
+    dw offset unidad_4
+    dw offset unidad_5
+
+;--------------------- OPCIÓN INVALIDA ----------------------
+opcion_invalida:
+    call cambiar_color_gris
+    lea dx, msg_error
+    call imprimir_pantalla
+    call sonido_error
+    call cambiar_color_amarillo
+    jmp menu_principal
+
+;--------------------- UNIDADES ------------------------------
+unidad_1:
+    mov bx, offset unidades_jugadas
+    cmp byte ptr [bx], 1
+    jne u1_ok
+    jmp repetida
+u1_ok:
+    mov byte ptr [bx], 1
+    inc byte ptr [completadas]
+    call jugar_alu                 ; AL = 0..5 (NO sumar al global acá)
+    call actualizar_puntaje
+    jmp volver_menu
+
+unidad_2:
+    mov bx, offset unidades_jugadas + 1
+    cmp byte ptr [bx], 1
+    jne u2_ok
+    jmp repetida
+u2_ok:
+    mov byte ptr [bx], 1
+    inc byte ptr [completadas]
+    call jugar_mem
+    call actualizar_puntaje
+    jmp volver_menu
+
+unidad_3:
+    mov bx, offset unidades_jugadas + 2
+    cmp byte ptr [bx], 1
+    jne u3_ok
+    jmp repetida
+u3_ok:
+    mov byte ptr [bx], 1
+    inc byte ptr [completadas]
+    call jugar_int
+    call actualizar_puntaje
+    jmp volver_menu
+
+unidad_4:
+    mov bx, offset unidades_jugadas + 3
+    cmp byte ptr [bx], 1
+    jne u4_ok
+    jmp repetida
+u4_ok:
+    mov byte ptr [bx], 1
+    inc byte ptr [completadas]
+    call jugar_uc
+    call actualizar_puntaje
+    jmp volver_menu
+
+unidad_5:
+    mov bx, offset unidades_jugadas + 4
+    cmp byte ptr [bx], 1
+    jne u5_ok
+    jmp repetida
+u5_ok:
+    mov byte ptr [bx], 1
+    inc byte ptr [completadas]
+    call jugar_io
+    call actualizar_puntaje
+    jmp volver_menu
+
+;--------------------- UNIDAD REPETIDA -----------------------
+repetida:
+    call cambiar_color_gris
+    lea dx, msg_repetido
+    call imprimir_pantalla
+    call sonido_error
+    call cambiar_color_amarillo
+    jmp menu_principal
+
+;--------------------- VOLVER AL MENÚ ------------------------
+volver_menu:
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+    lea dx, cartel
+    call imprimir_pantalla
+    jmp menu_principal
+
+;--------------------- FINAL DEL JUEGO -----------------------
+fin_juego:
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+
     lea dx, msg_final
     call imprimir_pantalla
+    call sonido_presentacion
 
+    lea dx, msg_total
+    call imprimir_pantalla
+
+    mov al, [puntaje_total]
     xor ah, ah
-    mov al, bl
-    mov bx, offset nroAscii
+    mov bx, offset nro_ascii
     call reg2ascii
-
-    lea dx, nroAscii
+    lea dx, nro_ascii
     call imprimir_pantalla
 
     mov dl, '/'
     mov ah, 02h
     int 21h
+    mov dl, '2'
+    int 21h
     mov dl, '5'
     int 21h
 
-    cmp bl, 3
-    jb reprobo
+    ; Aprobado / Desaprobado
+    mov al, [puntaje_total]
+    cmp al, 13
+    jae aprobado_ok
+    jmp desaprobado
+
+aprobado_ok:
     lea dx, msg_aprobado
     call imprimir_pantalla
     jmp fin
 
-reprobo:
-    lea dx, msg_reprobo
+desaprobado:
+    lea dx, msg_desaprobado
     call imprimir_pantalla
 
 fin:
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-jugar_alu endp
+    lea dx, msg_salir
+    call imprimir_pantalla
+    mov ax, 4C00h
+    int 21h
+main endp
 
-end
+
+; SUBRUTINA: Mostrar unidades restantes
+
+mostrar_menu_dinamico proc
+    push bx
+    push dx
+
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+
+    mov bx, offset unidades_jugadas
+
+    cmp byte ptr [bx], 1
+    je skip1
+    lea dx, opcion_1
+    call imprimir_pantalla
+skip1:
+    cmp byte ptr [bx+1], 1  
+    je skip2
+    lea dx, opcion_2
+    call imprimir_pantalla
+skip2:
+    cmp byte ptr [bx+2], 1
+    je skip3
+    lea dx, opcion_3
+    call imprimir_pantalla
+skip3:
+    cmp byte ptr [bx+3], 1
+    je skip4
+    lea dx, opcion_4
+    call imprimir_pantalla
+skip4:
+    cmp byte ptr [bx+4], 1
+    je skip5
+    lea dx, opcion_5
+    call imprimir_pantalla
+skip5:
+    lea dx, cartel
+    call imprimir_pantalla
+    call actualizar_puntaje
+
+    pop dx
+    pop bx
+    ret
+mostrar_menu_dinamico endp
+
+end main
