@@ -16,185 +16,207 @@
 .model small
 .stack 100h
 
+
 extrn imprimir_pantalla:proc
 extrn leer_caracter_abc:proc
 extrn sonido_error:proc
 extrn sonido_presentacion:proc
-extrn reg2ascii:proc
+extrn actualizar_puntaje:proc
+extrn puntaje_total:byte
+extrn cls_azul_10h:proc
+extrn cambiar_color_amarillo:proc
 
 .data
-msg_intro      db 0dh,0ah,"[UNIDAD: MEMORIA PRINCIPAL]",0dh,0ah
-               db "Responde las 5 preguntas del parcial (A, B o C).",0dh,0ah,'$'
+msg_intro_mem  db 0dh,0ah,"[UNIDAD: MEMORIA PRINCIPAL]",0dh,0ah,'$'
 
-msg_correcto   db 0dh,0ah,"✅ Correcto!",0dh,0ah,'$'
-msg_incorrecto db 0dh,0ah,"❌ Incorrecto!",0dh,0ah,'$'
-msg_final      db 0dh,0ah,"Puntaje final: ",'$'
-msg_aprobado   db 0dh,0ah,"Aprobado! Excelente manejo de la memoria 🧠",0dh,0ah,'$'
-msg_reprobo    db 0dh,0ah,"Debes repasar el funcionamiento de la memoria 💾",0dh,0ah,'$'
+msg_ok_mem     db 0dh,0ah,"Correcto!",0dh,0ah,'$'
+msg_bad_mem    db 0dh,0ah,"Incorrecto!",0dh,0ah,'$'
+msg_fin_mem    db 0dh,0ah,"Fin de la unidad de MEMORIA!",0dh,0ah,'$'
+msg_apr_mem    db 0dh,0ah,"Aprobado! Excelente manejo de la memoria.",0dh,0ah,'$'
+msg_rep_mem    db 0dh,0ah,"Repasar conceptos de memoria (RAM/ROM/Buses).",0dh,0ah,'$'
+nl             db 0dh,0ah,'$'
 
-; Preguntas y opciones
-preg1 db 0dh,0ah,"1) ¿Qué tipo de memoria es volátil?",0dh,0ah
-      db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Disco Duro",0dh,0ah,'$'
 
-preg2 db 0dh,0ah,"2) ¿Dónde se almacenan temporalmente los datos en ejecución?",0dh,0ah
-      db "A) RAM",0dh,0ah,"B) CPU",0dh,0ah,"C) Registro de Control",0dh,0ah,'$'
-
-preg3 db 0dh,0ah,"3) ¿Qué sucede con los datos de la RAM al apagar la PC?",0dh,0ah
-      db "A) Se guardan en ROM",0dh,0ah,"B) Se pierden",0dh,0ah,"C) Se copian al cache",0dh,0ah,'$'
-
-preg4 db 0dh,0ah,"4) ¿Qué bus se usa para acceder a direcciones de memoria?",0dh,0ah
-      db "A) Bus de Datos",0dh,0ah,"B) Bus de Control",0dh,0ah,"C) Bus de Direcciones",0dh,0ah,'$'
-
-preg5 db 0dh,0ah,"5) ¿Cuál de estas es una memoria NO volátil?",0dh,0ah
-      db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Caché",0dh,0ah,'$'
-
-; Buffers
-nroAscii db '000','$'   ; Para conversión del puntaje
+preg1_mem db 0dh,0ah,"1) Que tipo de memoria es volatil?",0dh,0ah
+         db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Disco Duro",0dh,0ah,'$'
+preg2_mem db 0dh,0ah,"2) Donde se almacenan datos en ejecucion?",0dh,0ah
+         db "A) RAM",0dh,0ah,"B) CPU",0dh,0ah,"C) Registro de Control",0dh,0ah,'$'
+preg3_mem db 0dh,0ah,"3) Que sucede con los datos de la RAM al apagar la PC?",0dh,0ah
+         db "A) Se guardan en ROM",0dh,0ah,"B) Se pierden",0dh,0ah,"C) Se copian al cache",0dh,0ah,'$'
+preg4_mem db 0dh,0ah,"4) Que bus se usa para acceder a direcciones de memoria?",0dh,0ah
+         db "A) Bus de Datos",0dh,0ah,"B) Bus de Control",0dh,0ah,"C) Bus de Direcciones",0dh,0ah,'$'
+preg5_mem db 0dh,0ah,"5) Cual de estas es NO volatil?",0dh,0ah
+         db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Cache",0dh,0ah,'$'
 
 .code
-public jugar_mem
 
+
+; Helper local: limpia + HUD + título + pregunta
+; EN: DX = ptr a PREGUNTA ($)
+
+mem_screen_pregunta proc
+    push ax
+    push dx
+    call cls_azul_10h
+    call cambiar_color_amarillo
+    call actualizar_puntaje
+    lea dx, msg_intro_mem
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx
+    call imprimir_pantalla
+    pop ax
+    ret
+mem_screen_pregunta endp
+
+
+; Helper local: limpia + HUD + título + estado + pregunta siguiente
+; EN: DX = ptr a MENSAJE (Correcto/Incorrecto, $)
+;     BX = ptr a PREGUNTA SIGUIENTE ($)
+
+mem_screen_next_with_status proc
+    push ax
+    push bx
+    push dx
+    call cls_azul_10h
+    call actualizar_puntaje
+    lea dx, msg_intro_mem
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    pop dx                 ; estado
+    call imprimir_pantalla
+    lea dx, nl
+    call imprimir_pantalla
+    mov dx, bx             ; pregunta siguiente
+    call imprimir_pantalla
+    pop bx
+    pop ax
+    ret
+mem_screen_next_with_status endp
+
+public jugar_mem
 jugar_mem proc
     push ax
     push bx
-    push cx
     push dx
 
-    mov bl, 0            ; Contador de respuestas correctas (0–5)
+    mov bl, 0                     ; contador local de aciertos (0..5)
 
-    ;-----------------------------------
-    ; Introducción y sonido
-    ;-----------------------------------
-    lea dx, msg_intro
-    call imprimir_pantalla
+    ; Pantalla inicial con P1
+    lea dx, preg1_mem
+    call mem_screen_pregunta
     call sonido_presentacion
 
-    ;=============================
-    ; PREGUNTA 1
-    ;=============================
-    lea dx, preg1
-    call imprimir_pantalla
+;==================== PREGUNTA 1 ==============================
     call leer_caracter_abc
     cmp al, 'B'
-    je bien1
+    je  mem_ok1
     call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p2
-bien1:
+    lea dx, msg_bad_mem
+    lea bx, preg2_mem
+    call mem_screen_next_with_status
+    jmp mem_p2
+mem_ok1:
     inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_ok_mem
+    lea bx, preg2_mem
+    call mem_screen_next_with_status
 
-p2:
-    ;=============================
-    ; PREGUNTA 2
-    ;=============================
-    lea dx, preg2
-    call imprimir_pantalla
+;==================== PREGUNTA 2 ==============================
+mem_p2:
     call leer_caracter_abc
     cmp al, 'A'
-    je bien2
+    je  mem_ok2
     call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p3
-bien2:
+    lea dx, msg_bad_mem
+    lea bx, preg3_mem
+    call mem_screen_next_with_status
+    jmp mem_p3
+mem_ok2:
     inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_ok_mem
+    lea bx, preg3_mem
+    call mem_screen_next_with_status
 
-p3:
-    ;=============================
-    ; PREGUNTA 3
-    ;=============================
-    lea dx, preg3
-    call imprimir_pantalla
+;==================== PREGUNTA 3 ==============================
+mem_p3:
     call leer_caracter_abc
     cmp al, 'B'
-    je bien3
+    je  mem_ok3
     call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p4
-bien3:
+    lea dx, msg_bad_mem
+    lea bx, preg4_mem
+    call mem_screen_next_with_status
+    jmp mem_p4
+mem_ok3:
     inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_ok_mem
+    lea bx, preg4_mem
+    call mem_screen_next_with_status
 
-p4:
-    ;=============================
-    ; PREGUNTA 4
-    ;=============================
-    lea dx, preg4
-    call imprimir_pantalla
+;==================== PREGUNTA 4 ==============================
+mem_p4:
     call leer_caracter_abc
     cmp al, 'C'
-    je bien4
+    je  mem_ok4
     call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
-    jmp p5
-bien4:
+    lea dx, msg_bad_mem
+    lea bx, preg5_mem
+    call mem_screen_next_with_status
+    jmp mem_p5
+mem_ok4:
     inc bl
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_ok_mem
+    lea bx, preg5_mem
+    call mem_screen_next_with_status
 
-p5:
-    ;=============================
-    ; PREGUNTA 5
-    ;=============================
-    lea dx, preg5
-    call imprimir_pantalla
+;==================== PREGUNTA 5 ==============================
+mem_p5:
     call leer_caracter_abc
     cmp al, 'A'
-    je bien5
+    je  mem_ok5
     call sonido_error
-    lea dx, msg_incorrecto
+    lea dx, msg_bad_mem
     call imprimir_pantalla
-    jmp resultado
-bien5:
+    jmp mem_result
+mem_ok5:
     inc bl
-    lea dx, msg_correcto
+    inc byte ptr [puntaje_total]
+    call actualizar_puntaje
+    lea dx, msg_ok_mem
     call imprimir_pantalla
 
-resultado:
-    ;-----------------------------------
-    ; Mostrar puntaje usando reg2ascii
-    ;-----------------------------------
-    lea dx, msg_final
+;==================== RESULTADO FINAL =========================
+mem_result:
+    call cls_azul_10h
+    call actualizar_puntaje
+    lea dx, msg_fin_mem
     call imprimir_pantalla
+    call actualizar_puntaje
 
-    xor ah, ah
-    mov al, bl          ; Cantidad de aciertos
-    mov bx, offset nroAscii
-    call reg2ascii
-
-    lea dx, nroAscii
-    call imprimir_pantalla
-
-    mov dl, '/'
-    mov ah, 02h
-    int 21h
-    mov dl, '5'
-    int 21h
-
-    ;-----------------------------------
-    ; Mostrar mensaje según resultado
-    ;-----------------------------------
     cmp bl, 3
-    jb reprobo
-    lea dx, msg_aprobado
+    jb  mem_repro
+    lea dx, msg_apr_mem
     call imprimir_pantalla
-    jmp fin
+    jmp mem_fin
 
-reprobo:
-    lea dx, msg_reprobo
+mem_repro:
+    lea dx, msg_rep_mem
     call imprimir_pantalla
 
-fin:
+mem_fin:
+    mov al, bl                 ; devolver aciertos al main
     pop dx
-    pop cx
     pop bx
     pop ax
     ret
