@@ -7,8 +7,9 @@ dummy db 0
 dummy2 db 0
 
 .code
-public cls_attr_10h, cls_azul_10h, setmodo_80x25
-
+public cls_attr_10h
+public cls_azul_10h
+public setmodo_80x25
 
 ; setmodo_80x25: modo 03h (80x25, 16 colores)
 ; Preserva nada (rápida). Úsala si querés estandarizar el modo.
