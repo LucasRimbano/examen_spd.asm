@@ -19,15 +19,20 @@ msg_aprobado db 0dh,0ah,"Aprobado! Excelente repaso de SPD!",0dh,0ah,'$'
 msg_desaprobado db 0dh,0ah,"Desaprobado. Segui estudiando, Rick.",0dh,0ah,'$'
 msg_salir db 0dh,0ah,"Gracias por jugar y repasar SPD!",0dh,0ah,'$'
 
-puntaje_total db 0 
+puntaje_total db 0
 public puntaje_total
-nro_ascii db '000','$'          
-unidades_jugadas db 0,0,0,0,0  
-completadas db 0               
+nro_ascii db '000','$'
+unidades_jugadas db 0,0,0,0,0
+public unidades_jugadas
+completadas db 0
 seg_dgroup dw ?
 public seg_dgroup
 
+
+
+
 .code
+; ---- tus libs de UI / juego
 extrn imprimir_pantalla:proc
 extrn leer_opcion_menu:proc
 extrn sonido_presentacion:proc
@@ -40,25 +45,35 @@ extrn jugar_mem:proc
 extrn jugar_int:proc
 extrn jugar_uc:proc
 extrn jugar_io:proc
-extrn intro:proc
-extrn actualizar_puntaje:proc 
+extrn actualizar_puntaje:proc
 extrn cls_azul_10h:proc
-extrn cls_attr_10h:proc  
+extrn cls_attr_10h:proc
 
 
+; ---- librería BMP con interfaz vieja
+; mostrarImagen -> veamos.bmp  (no usada acá, pero la dejo por si querés testear)
+; imagenGana    -> sigana.bmp
+; imagenPierde  -> sipierde.bmp
+extrn mostrarImagen:proc
+extrn imagenGana:proc
+extrn imagenPierde:proc
+
+;============================================================
 ; PROGRAMA PRINCIPAL
-
+;============================================================
 main proc
     mov ax, @data
     mov ds, ax
-
     mov [seg_dgroup], ax
-    
 
-    call intro
+    ; Llamar a la interrupcion personalizada INT 60h
+    int 60h                 ; muestra la pantalla de intro desde el .COM
+
+    ; Después de la intro, seguimos como antes
     call cls_azul_10h
     call cambiar_color_amarillo
     call actualizar_puntaje
+
 
     lea dx, cartel_bienvenida
     call imprimir_pantalla
@@ -77,7 +92,6 @@ continuar_menu:
     call mostrar_menu_dinamico
     call leer_opcion_menu            ; AL = '1'..'5'
 
-    ; validar '1'..'5'
     cmp al, '1'
     jb  __to_op_inv
     cmp al, '5'
@@ -85,14 +99,10 @@ continuar_menu:
 __to_op_inv:
     jmp opcion_invalida
 __ok_range:
-
-    ; AL -> índice 0..4
     sub al, '1'
     mov bl, al
     xor bh, bh
     shl bx, 1
-
-    ; jump table (near offsets en CS)
     jmp  word ptr cs:[op_table+bx]
 
 op_table:
@@ -120,7 +130,7 @@ unidad_1:
 u1_ok:
     mov byte ptr [bx], 1
     inc byte ptr [completadas]
-    call jugar_alu                 ; AL = 0..5 (NO sumar al global acá)
+    call jugar_alu
     call actualizar_puntaje
     jmp volver_menu
 
@@ -173,11 +183,18 @@ u5_ok:
     jmp volver_menu
 
 ;--------------------- UNIDAD REPETIDA -----------------------
+
 repetida:
     call cambiar_color_gris
     lea dx, msg_repetido
     call imprimir_pantalla
     call sonido_error
+
+    ; ==== PAUSA PARA QUE PUEDAS LEER EL CARTEL ====
+    mov ah, 08h      ; esperar una tecla (sin eco)
+    int 21h
+    ; ==============================================
+
     call cambiar_color_amarillo
     jmp menu_principal
 
@@ -210,6 +227,7 @@ fin_juego:
     lea dx, nro_ascii
     call imprimir_pantalla
 
+    ; mostrar "/25"
     mov dl, '/'
     mov ah, 02h
     int 21h
@@ -218,31 +236,50 @@ fin_juego:
     mov dl, '5'
     int 21h
 
-    ; Aprobado / Desaprobado
+    ; ---- Corte de aprobación: 13 o más aprueba ----
     mov al, [puntaje_total]
     cmp al, 13
     jae aprobado_ok
     jmp desaprobado
 
 aprobado_ok:
+    ; 1) cartel
     lea dx, msg_aprobado
     call imprimir_pantalla
+
+    ; 2) Pausa antes de mostrar la BMP
+    mov ah, 08h
+    int 21h
+
+    ; 3) BMP aprobado
+    call imagenGana
     jmp fin
 
 desaprobado:
+    ; 1) cartel
     lea dx, msg_desaprobado
     call imprimir_pantalla
 
+    ; 2) Pausa antes de mostrar la BMP
+    mov ah, 08h
+    int 21h
+
+    ; 3) BMP desaprobado
+    call imagenPierde
+    jmp fin
+
 fin:
+    ; Mensaje final y salida
     lea dx, msg_salir
     call imprimir_pantalla
     mov ax, 4C00h
     int 21h
+
 main endp
 
-
-; SUBRUTINA: Mostrar unidades restantes
-
+;============================================================
+; SUBRUTINA: Mostrar menu dinámico
+;============================================================
 mostrar_menu_dinamico proc
     push bx
     push dx
@@ -251,14 +288,14 @@ mostrar_menu_dinamico proc
     call cambiar_color_amarillo
     call actualizar_puntaje
 
-    mov bx, offset unidades_jugadas 
+    mov bx, offset unidades_jugadas
 
     cmp byte ptr [bx], 1
     je skip1
     lea dx, opcion_1
     call imprimir_pantalla
 skip1:
-    cmp byte ptr [bx+1], 1  
+    cmp byte ptr [bx+1], 1
     je skip2
     lea dx, opcion_2
     call imprimir_pantalla
