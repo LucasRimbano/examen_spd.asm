@@ -1,3 +1,12 @@
+;============================================================
+; UNIDAD: INTERRUPCIONES
+;------------------------------------------------------------
+; - Igual formato visual que ALU y MEMORIA
+; - Timeout 10 s con INT 1Ah
+; - Muestra Correcto/Incorrecto/Tiempo/Inválido arriba
+; - Puntaje global con HUD azul
+;============================================================
+
 .8086
 .model small
 .stack 100h
@@ -5,24 +14,23 @@
 extrn imprimir_pantalla:proc
 extrn sonido_error:proc
 extrn sonido_presentacion:proc
-extrn leer_caracter_abc:proc
 extrn actualizar_puntaje:proc
 extrn puntaje_total:byte
 extrn cls_azul_10h:proc
-extrn cambiar_color_amarillo:proc
 
 .data
-; Título SOLO
 msg_intro      db 0dh,0ah,"[UNIDAD: INTERRUPCIONES]",0dh,0ah,'$'
 
 msg_correcto   db 0dh,0ah,"Correcto!",0dh,0ah,'$'
-msg_incorrecto db 0dh,0ah,"Incorrecto...",0dh,0ah,'$'
+msg_incorrecto db 0dh,0ah,"Incorrecto!",0dh,0ah,'$'
+msg_tiempo     db 0dh,0ah,"Tiempo agotado: se toma como INCORRECTA.",0dh,0ah,'$'
+msg_invalido   db 0dh,0ah,"Solo se permiten las letras A, B o C.",0dh,0ah,'$'
 msg_final      db 0dh,0ah,"Fin de la unidad de INTERRUPCIONES!",0dh,0ah,'$'
 msg_aprobado   db 0dh,0ah,"Excelente! Dominio solido de las interrupciones.",0dh,0ah,'$'
 msg_reprobo    db 0dh,0ah,"Repasar interrupciones.",0dh,0ah,'$'
 nl             db 0dh,0ah,'$'
 
-; Preguntas + opciones separadas
+;================= PREGUNTAS Y OPCIONES ======================
 preg1 db 0dh,0ah,"1) Que hace una interrupcion?",0dh,0ah,'$'
 opc1  db "A) Detiene el CPU permanentemente",0dh,0ah
       db "B) Suspende el flujo y atiende un evento",0dh,0ah
@@ -54,34 +62,10 @@ opc5  db "A) AX",0dh,0ah
 resp5 db 'B'
 
 .code
-
-
-; Helper: limpia + HUD + título + (pregunta + opciones)
-; EN: DX = ptr pregunta ($) | BX = ptr opciones ($)
-
-int_screen_preg_y_opc proc
-    push ax
-    push bx
-    push dx
-    call cls_azul_10h
-    call cambiar_color_amarillo
-    call actualizar_puntaje
-    lea dx, msg_intro
-    call imprimir_pantalla
-    lea dx, nl
-    call imprimir_pantalla
-    pop dx              ; pregunta
-    call imprimir_pantalla
-    mov dx, bx          ; opciones
-    call imprimir_pantalla
-    pop bx
-    pop ax
-    ret
-int_screen_preg_y_opc endp
-
-; Helper: limpia + HUD + título + estado + línea + (pregunta+opc)
-; EN: DX = ptr estado ($) | SI = ptr pregunta ($) | BX = ptr opciones ($)
-
+;============================================================
+; Helper: pantalla con estado + siguiente pregunta y opciones
+; EN: DX = ptr mensaje estado, SI = ptr pregunta, BX = ptr opciones
+;============================================================
 int_screen_status_y_preg proc
     push ax
     push bx
@@ -89,154 +73,297 @@ int_screen_status_y_preg proc
     push dx
     call cls_azul_10h
     call actualizar_puntaje
-    lea dx, msg_intro
+    lea dx,msg_intro
     call imprimir_pantalla
-    lea dx, nl
+    lea dx,nl
     call imprimir_pantalla
-    pop dx              ; estado (Correcto/Incorrecto)
+    pop dx
+    call imprimir_pantalla     ; mensaje estado
+    lea dx,nl
     call imprimir_pantalla
-    lea dx, nl
-    call imprimir_pantalla
-    mov dx, si          ; pregunta
-    call imprimir_pantalla
-    mov dx, bx          ; opciones
-    call imprimir_pantalla
+    mov dx,si
+    call imprimir_pantalla     ; pregunta
+    mov dx,bx
+    call imprimir_pantalla     ; opciones
     pop si
     pop bx
     pop ax
     ret
 int_screen_status_y_preg endp
 
+;============================================================
+; Lector con timeout (10 s)
+; OUT: AL='A'/'B'/'C' → válida, AL=0 → timeout, AL=0FFh → inválida
+;============================================================
+public leer_abc_timeout_interrupcion
+leer_abc_timeout_interrupcion proc
+    push bx
+    push cx
+    push dx
+
+    mov ah,00h
+    int 1Ah
+    mov bx,dx
+
+bucle:
+    mov ah,01h
+    int 16h
+    jz revisar_tiempo
+
+    mov ah,00h
+    int 16h
+    cmp al,'a'
+    jb validar
+    cmp al,'z'
+    ja validar
+    and al,11011111b
+
+validar:
+    cmp al,'A'
+    je listo
+    cmp al,'B'
+    je listo
+    cmp al,'C'
+    je listo
+    mov al,0FFh
+    jmp salir
+
+revisar_tiempo:
+    mov ah,00h
+    int 1Ah
+    mov cx,dx
+    sub cx,bx
+    cmp cx,182
+    jb bucle
+    mov al,0
+    jmp salir
+
+listo:
+salir:
+    pop dx
+    pop cx
+    pop bx
+    ret
+leer_abc_timeout_interrupcion endp
+
+;============================================================
+; PROCESO PRINCIPAL: JUGAR INTERRUPCIONES
+;============================================================
 public jugar_int
 jugar_int proc
     push ax
     push bx
     push dx
     push si
+    mov bl,0
 
-    mov bl, 0                    ; aciertos locales (0..5)
-
-    ; Pantalla inicial con P1
-    lea dx, preg1
-    lea bx, opc1
-    call int_screen_preg_y_opc
+    call cls_azul_10h
+    call actualizar_puntaje
+    lea dx,msg_intro
+    call imprimir_pantalla
+    lea dx,preg1
+    call imprimir_pantalla
+    lea dx,opc1
+    call imprimir_pantalla
     call sonido_presentacion
 
-;---------------- PREGUNTA 1 ----------------
-    call leer_caracter_abc
-    cmp al, [resp1]
-    je  int_ok1
+;==================== PREGUNTA 1 ======================
+p1:
+    call leer_abc_timeout_interrupcion
+    cmp al,0
+    je  p1_tarde
+    cmp al,0FFh
+    je  p1_inv
+    cmp al,[resp1]
+    je  p1_ok
     call sonido_error
-    lea dx, msg_incorrecto
-    lea si, preg2
-    lea bx, opc2
+    lea dx,msg_incorrecto
+    lea si,preg2
+    lea bx,opc2
     call int_screen_status_y_preg
-    jmp int_p2
-int_ok1:
+    jmp p2
+p1_tarde:
+    call sonido_error
+    lea dx,msg_tiempo
+    lea si,preg2
+    lea bx,opc2
+    call int_screen_status_y_preg
+    jmp p2
+p1_inv:
+    call sonido_error
+    lea dx,msg_invalido
+    lea si,preg1
+    lea bx,opc1
+    call int_screen_status_y_preg
+    jmp p1
+p1_ok:
     inc bl
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
-    lea dx, msg_correcto
-    lea si, preg2
-    lea bx, opc2
+    lea dx,msg_correcto
+    lea si,preg2
+    lea bx,opc2
     call int_screen_status_y_preg
 
-;---------------- PREGUNTA 2 ----------------
-int_p2:
-    call leer_caracter_abc
-    cmp al, [resp2]
-    je  int_ok2
+;==================== PREGUNTA 2 ======================
+p2:
+    call leer_abc_timeout_interrupcion
+    cmp al,0
+    je  p2_tarde
+    cmp al,0FFh
+    je  p2_inv
+    cmp al,[resp2]
+    je  p2_ok
     call sonido_error
-    lea dx, msg_incorrecto
-    lea si, preg3
-    lea bx, opc3
+    lea dx,msg_incorrecto
+    lea si,preg3
+    lea bx,opc3
     call int_screen_status_y_preg
-    jmp int_p3
-int_ok2:
+    jmp p3
+p2_tarde:
+    call sonido_error
+    lea dx,msg_tiempo
+    lea si,preg3
+    lea bx,opc3
+    call int_screen_status_y_preg
+    jmp p3
+p2_inv:
+    call sonido_error
+    lea dx,msg_invalido
+    lea si,preg2
+    lea bx,opc2
+    call int_screen_status_y_preg
+    jmp p2
+p2_ok:
     inc bl
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
-    lea dx, msg_correcto
-    lea si, preg3
-    lea bx, opc3
+    lea dx,msg_correcto
+    lea si,preg3
+    lea bx,opc3
     call int_screen_status_y_preg
 
-;---------------- PREGUNTA 3 ----------------
-int_p3:
-    call leer_caracter_abc
-    cmp al, [resp3]
-    je  int_ok3
+;==================== PREGUNTA 3 ======================
+p3:
+    call leer_abc_timeout_interrupcion
+    cmp al,0
+    je  p3_tarde
+    cmp al,0FFh
+    je  p3_inv
+    cmp al,[resp3]
+    je  p3_ok
     call sonido_error
-    lea dx, msg_incorrecto
-    lea si, preg4
-    lea bx, opc4
+    lea dx,msg_incorrecto
+    lea si,preg4
+    lea bx,opc4
     call int_screen_status_y_preg
-    jmp int_p4
-int_ok3:
+    jmp p4
+p3_tarde:
+    call sonido_error
+    lea dx,msg_tiempo
+    lea si,preg4
+    lea bx,opc4
+    call int_screen_status_y_preg
+    jmp p4
+p3_inv:
+    call sonido_error
+    lea dx,msg_invalido
+    lea si,preg3
+    lea bx,opc3
+    call int_screen_status_y_preg
+    jmp p3
+p3_ok:
     inc bl
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
-    lea dx, msg_correcto
-    lea si, preg4
-    lea bx, opc4
+    lea dx,msg_correcto
+    lea si,preg4
+    lea bx,opc4
     call int_screen_status_y_preg
 
-;---------------- PREGUNTA 4 ----------------
-int_p4:
-    call leer_caracter_abc
-    cmp al, [resp4]
-    je  int_ok4
+;==================== PREGUNTA 4 ======================
+p4:
+    call leer_abc_timeout_interrupcion
+    cmp al,0
+    je  p4_tarde
+    cmp al,0FFh
+    je  p4_inv
+    cmp al,[resp4]
+    je  p4_ok
     call sonido_error
-    lea dx, msg_incorrecto
-    lea si, preg5
-    lea bx, opc5
+    lea dx,msg_incorrecto
+    lea si,preg5
+    lea bx,opc5
     call int_screen_status_y_preg
-    jmp int_p5
-int_ok4:
+    jmp p5
+p4_tarde:
+    call sonido_error
+    lea dx,msg_tiempo
+    lea si,preg5
+    lea bx,opc5
+    call int_screen_status_y_preg
+    jmp p5
+p4_inv:
+    call sonido_error
+    lea dx,msg_invalido
+    lea si,preg4
+    lea bx,opc4
+    call int_screen_status_y_preg
+    jmp p4
+p4_ok:
     inc bl
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
-    lea dx, msg_correcto
-    lea si, preg5
-    lea bx, opc5
+    lea dx,msg_correcto
+    lea si,preg5
+    lea bx,opc5
     call int_screen_status_y_preg
 
-;---------------- PREGUNTA 5 ----------------
-int_p5:
-    call leer_caracter_abc
-    cmp al, [resp5]
-    je  int_ok5
+;==================== PREGUNTA 5 ======================
+p5:
+    call leer_abc_timeout_interrupcion
+    cmp al,0
+    je  p5_tarde
+    cmp al,0FFh
+    je  p5_inv
+    cmp al,[resp5]
+    je  p5_ok
     call sonido_error
-    lea dx, msg_incorrecto
-    call imprimir_pantalla
+    lea dx,msg_incorrecto
     jmp int_final
-int_ok5:
+p5_tarde:
+    call sonido_error
+    lea dx,msg_tiempo
+    jmp int_final
+p5_inv:
+    call sonido_error
+    lea dx,msg_invalido
+    lea si,preg5
+    lea bx,opc5
+    call int_screen_status_y_preg
+    jmp p5
+p5_ok:
     inc bl
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
-    lea dx, msg_correcto
-    call imprimir_pantalla
+    lea dx,msg_correcto
 
-;---------------- FINAL ---------------------
+;==================== FINAL ===========================
 int_final:
     call cls_azul_10h
     call actualizar_puntaje
-    lea dx, msg_final
+    lea dx,msg_final
     call imprimir_pantalla
-    call actualizar_puntaje
-
-    cmp bl, 3
+    cmp bl,3
     jb  int_repro
-    lea dx, msg_aprobado
+    lea dx,msg_aprobado
     call imprimir_pantalla
     jmp int_fin
-
 int_repro:
-    lea dx, msg_reprobo
+    lea dx,msg_reprobo
     call imprimir_pantalla
-
 int_fin:
-    mov al, bl                 ; devolver puntaje en AL
+    mov al,bl
     pop si
     pop dx
     pop bx
