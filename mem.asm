@@ -1,10 +1,8 @@
 ;============================================================
 ; UNIDAD: MEMORIA PRINCIPAL (MEMORIA.ASM)
 ;------------------------------------------------------------
-; - Igual diseño que ALU (pantalla azul con estado + pregunta)
-; - Timeout 10 s usando INT 1Ah
-; - Valida solo A/B/C
-; - Suma puntaje y muestra mensajes fijos arriba
+; - Preguntas 1 a 4: teclado con timeout (INT 1Ah)
+; - Pregunta 5: SOLO mouse (leer_opcion_mouse_abc)
 ;============================================================
 
 .8086
@@ -18,6 +16,8 @@ extrn sonido_presentacion:proc
 extrn actualizar_puntaje:proc
 extrn puntaje_total:byte
 extrn cls_azul_10h:proc
+extrn leer_opcion_mouse_abc:proc    ; <<-- agregado para la P5 con mouse
+
 
 .data
 msg_intro_mem db 0dh,0ah,"[UNIDAD: MEMORIA PRINCIPAL]",0dh,0ah,'$'
@@ -32,15 +32,15 @@ msg_rep_mem   db 0dh,0ah,"Repasar conceptos de RAM, ROM y Buses.",0dh,0ah,'$'
 nl            db 0dh,0ah,'$'
 
 preg1_mem db 0dh,0ah,"1) Que tipo de memoria es volatil?",0dh,0ah
-          db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Disco Duro",0dh,0ah,'$'
-preg2_mem db 0dh,0ah,"2) Donde se almacenan datos en ejecucion?",0dh,0ah
-          db "A) RAM",0dh,0ah,"B) CPU",0dh,0ah,"C) Registro de Control",0dh,0ah,'$'
+          db "A)    ROM",0dh,0ah,"B)    RAM",0dh,0ah,"C)    Disco Duro",0dh,0ah,'$'
+preg2_mem db 0dh,0ah,"2)    Donde se almacenan datos en ejecucion?",0dh,0ah
+          db "A)     RAM",0dh,0ah,"B)     CPU",0dh,0ah,"C)    Registro de Control",0dh,0ah,'$'
 preg3_mem db 0dh,0ah,"3) Que sucede con los datos de la RAM al apagar la PC?",0dh,0ah
-          db "A) Se guardan en ROM",0dh,0ah,"B) Se pierden",0dh,0ah,"C) Se copian al cache",0dh,0ah,'$'
+          db "A)     Se guardan en ROM",0dh,0ah,"B)    Se pierden",0dh,0ah,"C)    Se copian al cache",0dh,0ah,'$'
 preg4_mem db 0dh,0ah,"4) Que bus se usa para acceder a direcciones de memoria?",0dh,0ah
-          db "A) Bus de Datos",0dh,0ah,"B) Bus de Control",0dh,0ah,"C) Bus de Direcciones",0dh,0ah,'$'
+          db "A)    Bus de Datos",0dh,0ah,"B)    Bus de Control",0dh,0ah,"C)    Bus de Direcciones",0dh,0ah,'$'
 preg5_mem db 0dh,0ah,"5) Cual de estas es NO volatil?",0dh,0ah
-          db "A) ROM",0dh,0ah,"B) RAM",0dh,0ah,"C) Cache",0dh,0ah,'$'
+          db "A)    ROM",0dh,0ah,"B)    RAM",0dh,0ah,"C)    Cache",0dh,0ah,'$'
 
 .code
 ;============================================================
@@ -256,13 +256,13 @@ p4:
     lea dx,msg_bad_mem
     lea bx,preg5_mem
     call mem_screen_next_with_status
-    jmp p5
+    jmp memoria_p5
 p4_tarde:
     call sonido_error
     lea dx,msg_time_mem
     lea bx,preg5_mem
     call mem_screen_next_with_status
-    jmp p5
+    jmp memoria_p5
 p4_inv:
     call sonido_error
     lea dx,msg_inv_mem
@@ -277,36 +277,37 @@ p4_ok:
     lea bx,preg5_mem
     call mem_screen_next_with_status
 
-;==================== PREGUNTA 5 ==============================
-p5:
-    call leer_abc_timeout_memoria
-    cmp al,0
-    je  p5_tarde
-    cmp al,0FFh
-    je  p5_inv
+;==================== PREGUNTA 5 (SOLO MOUSE) =================
+; Pregunta ya mostrada por mem_screen_next_with_status (desde p4_x)
+
+memoria_p5:
+ 
+    ; Leer respuesta con el mouse
+    call leer_opcion_mouse_abc      ; AL = 'A' / 'B' / 'C' (o 'Z' / teclado fallback)
+
+mem_p5_eval:
     cmp al,'A'
-    je  p5_ok
-    call sonido_error
-    lea dx,msg_bad_mem
-    jmp mem_result
-p5_tarde:
-    call sonido_error
-    lea dx,msg_time_mem
-    jmp mem_result
-p5_inv:
-    call sonido_error
-    lea dx,msg_inv_mem
-    lea bx,preg5_mem
-    call mem_screen_next_with_status
-    jmp p5
-p5_ok:
-    inc bl
-    inc byte ptr [puntaje_total]
+    jne mem_p5_mal                  ; SOLO 'A' es correcta
+
+mem_p5_ok:
+    inc bl                          ; aciertos en esta unidad
+    inc byte ptr [puntaje_total]    ; puntaje global
     call actualizar_puntaje
     lea dx,msg_ok_mem
+    call imprimir_pantalla
+    jmp mem_result
+
+mem_p5_mal:
+    call sonido_error
+    lea dx,msg_bad_mem
+    call imprimir_pantalla
+    jmp mem_result
 
 ;==================== RESULTADO FINAL =========================
 mem_result:
+    mov ax, 2 ; ocultamos puntero mouse 
+    int 33h 
+
     call cls_azul_10h
     call actualizar_puntaje
     lea dx,msg_fin_mem
