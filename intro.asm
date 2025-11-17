@@ -1,7 +1,3 @@
-;============================================================
-; INTRO_INT.ASM  → genera INTRO.COM (TSR con INT 60h)
-;============================================================
-
 .8086
 .model tiny
 .code
@@ -20,14 +16,18 @@ titulo_centro db "        |         SISTEMA DE PREGUNTAS Y DESAFIOS             
 titulo1 db       "        |         Bienvenido al EXAMEN FINAL de SPD                   |",0Dh,0Ah,'$'
 titulo2 db       "        |         Pone a prueba tus conocimientos tecnicos!           |",0Dh,0Ah,'$'
 menu_linea1 db   "        |         1.ALU     2.MEMORIA     3.INTERRUPCIONES            |",0Dh,0Ah,'$'
-menu_linea2 db   "        |               4.UC      5.E/S                               |",0Dh,0Ah,'$'
+menu_linea2 db   "        |                   4.UC      5.E/S                               |",0Dh,0Ah,'$'
 espacio_inf db   "        |                                                             |",0Dh,0Ah,'$'
 
-msg_anim   db "                 Cargando juego...",0Dh,0Ah,'$'
+msg_anim   db "                 Cargando parcial...",0Dh,0Ah,'$'
 msg_carga  db "                Ingresar solamente numeros del 1 al 5",0Dh,0Ah,'$'
 msg_tiempo db "               Si tardas 10 segundos automaticamente",0Dh,0Ah
            db "               se da como respuesta incorrecta",0Dh,0Ah,'$'
-
+msg_mouse  db "               Recorda que la quinta pregunta de todas las unidades" ,0dh,0ah
+           db "               se responden con el mouse seleccionando la opcion" ,0dh,0ah
+           db "               clickeando la respuesta que crea correcta" ,0dh,0ah   
+           db "               para el mouse tenes 15 segundos para responder,",0dh,0ah
+           db "               o automaticamente se da como respuesta incorrecta" ,0dh,0ah, '$'  
 msg_instalado db 0Dh,0Ah,"INT 60h instalada para pantalla de INTRO.",0Dh,0Ah,'$'
 
 old_off dw 0
@@ -114,6 +114,10 @@ nueva_int proc far
 
     lea dx, msg_tiempo
     mov ah, 09h
+    int 21h
+
+    lea dx , msg_mouse
+    mov ah , 09h
     int 21h
 
     ; Esperar una tecla
