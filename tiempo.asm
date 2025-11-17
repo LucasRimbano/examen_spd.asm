@@ -1,13 +1,12 @@
-;============================================================
-; LIBRERÍA: timeout.asm
-;------------------------------------------------------------
+
+; LIBRERIA: timeout.asm
+
 ; Exporta: leer_abc_timeout
 ; - Lee solo A/B/C con timeout de 10 s (~182 ticks BIOS)
 ; - Devuelve:
 ;       AL = 'A'/'B'/'C' → válida
 ;       AL = 0 → tiempo agotado
 ;       AL = 0FFh → tecla inválida
-;============================================================
 
 .8086
 .model small
@@ -33,7 +32,7 @@ bucle:
     mov ah,00h
     int 16h
 
-    ; convertir minúsculas a mayúsculas
+    ; convertir minusculas a mayusculas
     cmp al,'a'
     jb validar
     cmp al,'z'
@@ -48,7 +47,7 @@ validar:
     cmp al,'C'
     je listo
 
-    mov al,0FFh        ; inválida
+    mov al,0FFh        ; invalida
     jmp salir
 
 revisar_tiempo:
