@@ -2,7 +2,8 @@
 ; UNIDAD: INTERRUPCIONES
 ;------------------------------------------------------------
 ; - Igual formato visual que ALU y MEMORIA
-; - Timeout 10 s con INT 1Ah
+; - Preguntas 1 a 4: teclado con timeout (INT 1Ah)
+; - Pregunta 5: SOLO mouse (leer_opcion_mouse_abc)
 ; - Muestra Correcto/Incorrecto/Tiempo/Inválido arriba
 ; - Puntaje global con HUD azul
 ;============================================================
@@ -17,6 +18,20 @@ extrn sonido_presentacion:proc
 extrn actualizar_puntaje:proc
 extrn puntaje_total:byte
 extrn cls_azul_10h:proc
+extrn leer_opcion_mouse_abc:proc
+
+;--- mismas filas que en la librería de mouse ----------------
+A_ROW  equ 9
+B_ROW  equ 10
+C_ROW  equ 11
+ROW_H  equ 8
+
+A_Y_TOP   equ (A_ROW * ROW_H)
+A_Y_BOT   equ (A_ROW * ROW_H + ROW_H - 1)
+B_Y_TOP   equ (B_ROW * ROW_H)
+B_Y_BOT   equ (B_ROW * ROW_H + ROW_H - 1)
+C_Y_TOP   equ (C_ROW * ROW_H)
+C_Y_BOT   equ (C_ROW * ROW_H + ROW_H - 1)
 
 .data
 msg_intro      db 0dh,0ah,"[UNIDAD: INTERRUPCIONES]",0dh,0ah,'$'
@@ -30,71 +45,72 @@ msg_aprobado   db 0dh,0ah,"Excelente! Dominio solido de las interrupciones.",0dh
 msg_reprobo    db 0dh,0ah,"Repasar interrupciones.",0dh,0ah,'$'
 nl             db 0dh,0ah,'$'
 
-;================= PREGUNTAS Y OPCIONES ======================
-preg1 db 0dh,0ah,"1) Que hace una interrupcion?",0dh,0ah,'$'
-opc1  db "A) Detiene el CPU permanentemente",0dh,0ah
-      db "B) Suspende el flujo y atiende un evento",0dh,0ah
-      db "C) Reinicia el programa desde cero",0dh,0ah,'$'
-resp1 db 'B'
+preg1 db 0dh,0ah,"1) Que hace una interrupcion?",0dh,0ah
+      db "A)       Detiene el CPU permanentemente",0dh,0ah
+      db "B)       Suspende el flujo y atiende un evento",0dh,0ah
+      db "C)       Reinicia el programa desde cero",0dh,0ah,'$'
 
-preg2 db 0dh,0ah,"2) Que instruccion finaliza una ISR?",0dh,0ah,'$'
-opc2  db "A) RET",0dh,0ah
-      db "B) IRET",0dh,0ah
-      db "C) JMP",0dh,0ah,'$'
-resp2 db 'B'
+preg2 db 0dh,0ah,"2) Que instruccion finaliza una ISR?",0dh,0ah
+      db "A)       RET",0dh,0ah
+      db "B)       IRET",0dh,0ah
+      db "C)       JMP",0dh,0ah,'$'
 
-preg3 db 0dh,0ah,"3) Que hace la instruccion STI?",0dh,0ah,'$'
-opc3  db "A) Deshabilita las interrupciones",0dh,0ah
-      db "B) Habilita las interrupciones enmascarables",0dh,0ah
-      db "C) Llama a una ISR directamente",0dh,0ah,'$'
-resp3 db 'B'
+preg3 db 0dh,0ah,"3) Que hace la instruccion STI?",0dh,0ah
+      db "A)       Deshabilita las interrupciones",0dh,0ah
+      db "B)       Habilita las interrupciones enmascarables",0dh,0ah
+      db "C)       Llama a una ISR directamente",0dh,0ah,'$'
 
-preg4 db 0dh,0ah,"4) Que tipo de interrupcion NO puede ser enmascarada?",0dh,0ah,'$'
-opc4  db "A) NMI",0dh,0ah
-      db "B) INT 21h",0dh,0ah
-      db "C) INT 10h",0dh,0ah,'$'
-resp4 db 'A'
+preg4 db 0dh,0ah,"4) Que tipo de interrupcion NO puede ser enmascarada?",0dh,0ah
+      db "A)       NMI",0dh,0ah
+      db "B)       INT 21h",0dh,0ah
+      db "C)       INT 10h",0dh,0ah,'$'
 
-preg5 db 0dh,0ah,"5) Que registro usa el CPU para saber si puede atender una interrupcion?",0dh,0ah,'$'
-opc5  db "A) AX",0dh,0ah
-      db "B) FLAGS",0dh,0ah
-      db "C) CS",0dh,0ah,'$'
-resp5 db 'B'
+preg5 db 0dh,0ah,"5) Que registro usa el CPU para saber si puede atender una interrupcion?",0dh,0ah
+      db "A)       AX",0dh,0ah
+      db "B)       FLAGS",0dh,0ah
+      db "C)       CS",0dh,0ah,'$'
 
 .code
-;============================================================
-; Helper: pantalla con estado + siguiente pregunta y opciones
-; EN: DX = ptr mensaje estado, SI = ptr pregunta, BX = ptr opciones
-;============================================================
+;------------------------------------------------------------
+; Helper: pantalla con estado + siguiente pregunta
+; EN: DX = ptr mensaje estado, BX = ptr pregunta siguiente
+;------------------------------------------------------------
 int_screen_status_y_preg proc
     push ax
     push bx
-    push si
     push dx
+
     call cls_azul_10h
     call actualizar_puntaje
-    lea dx,msg_intro
+
+    ; título de la unidad
+    lea dx, msg_intro
     call imprimir_pantalla
-    lea dx,nl
+
+    ; línea en blanco debajo del título
+    lea dx, nl
     call imprimir_pantalla
+
+    ; mensaje de estado
     pop dx
-    call imprimir_pantalla     ; mensaje estado
-    lea dx,nl
     call imprimir_pantalla
-    mov dx,si
-    call imprimir_pantalla     ; pregunta
-    mov dx,bx
-    call imprimir_pantalla     ; opciones
-    pop si
+
+    ; UNA sola línea en blanco antes de la pregunta
+    lea dx, nl
+    call imprimir_pantalla
+
+    ; pregunta + opciones
+    mov dx, bx
+    call imprimir_pantalla
+
     pop bx
     pop ax
     ret
 int_screen_status_y_preg endp
 
-;============================================================
-; Lector con timeout (10 s)
-; OUT: AL='A'/'B'/'C' → válida, AL=0 → timeout, AL=0FFh → inválida
-;============================================================
+;------------------------------------------------------------
+; Lector con timeout
+;------------------------------------------------------------
 public leer_abc_timeout_interrupcion
 leer_abc_timeout_interrupcion proc
     push bx
@@ -146,15 +162,14 @@ salir:
     ret
 leer_abc_timeout_interrupcion endp
 
-;============================================================
-; PROCESO PRINCIPAL: JUGAR INTERRUPCIONES
-;============================================================
+;------------------------------------------------------------
+; PROCESO PRINCIPAL
+;------------------------------------------------------------
 public jugar_int
 jugar_int proc
     push ax
     push bx
     push dx
-    push si
     mov bl,0
 
     call cls_azul_10h
@@ -163,37 +178,33 @@ jugar_int proc
     call imprimir_pantalla
     lea dx,preg1
     call imprimir_pantalla
-    lea dx,opc1
-    call imprimir_pantalla
     call sonido_presentacion
 
-;==================== PREGUNTA 1 ======================
+; P1
 p1:
     call leer_abc_timeout_interrupcion
     cmp al,0
     je  p1_tarde
     cmp al,0FFh
     je  p1_inv
-    cmp al,[resp1]
+    cmp al,'B'
     je  p1_ok
+
     call sonido_error
     lea dx,msg_incorrecto
-    lea si,preg2
-    lea bx,opc2
+    lea bx,preg2
     call int_screen_status_y_preg
     jmp p2
 p1_tarde:
     call sonido_error
     lea dx,msg_tiempo
-    lea si,preg2
-    lea bx,opc2
+    lea bx,preg2
     call int_screen_status_y_preg
     jmp p2
 p1_inv:
     call sonido_error
     lea dx,msg_invalido
-    lea si,preg1
-    lea bx,opc1
+    lea bx,preg1
     call int_screen_status_y_preg
     jmp p1
 p1_ok:
@@ -201,37 +212,34 @@ p1_ok:
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
     lea dx,msg_correcto
-    lea si,preg2
-    lea bx,opc2
+    lea bx,preg2
     call int_screen_status_y_preg
 
-;==================== PREGUNTA 2 ======================
+; P2
 p2:
     call leer_abc_timeout_interrupcion
     cmp al,0
     je  p2_tarde
     cmp al,0FFh
     je  p2_inv
-    cmp al,[resp2]
+    cmp al,'B'
     je  p2_ok
+
     call sonido_error
     lea dx,msg_incorrecto
-    lea si,preg3
-    lea bx,opc3
+    lea bx,preg3
     call int_screen_status_y_preg
     jmp p3
 p2_tarde:
     call sonido_error
     lea dx,msg_tiempo
-    lea si,preg3
-    lea bx,opc3
+    lea bx,preg3
     call int_screen_status_y_preg
     jmp p3
 p2_inv:
     call sonido_error
     lea dx,msg_invalido
-    lea si,preg2
-    lea bx,opc2
+    lea bx,preg2
     call int_screen_status_y_preg
     jmp p2
 p2_ok:
@@ -239,37 +247,34 @@ p2_ok:
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
     lea dx,msg_correcto
-    lea si,preg3
-    lea bx,opc3
+    lea bx,preg3
     call int_screen_status_y_preg
 
-;==================== PREGUNTA 3 ======================
+; P3
 p3:
     call leer_abc_timeout_interrupcion
     cmp al,0
     je  p3_tarde
     cmp al,0FFh
     je  p3_inv
-    cmp al,[resp3]
+    cmp al,'B'
     je  p3_ok
+
     call sonido_error
     lea dx,msg_incorrecto
-    lea si,preg4
-    lea bx,opc4
+    lea bx,preg4
     call int_screen_status_y_preg
     jmp p4
 p3_tarde:
     call sonido_error
     lea dx,msg_tiempo
-    lea si,preg4
-    lea bx,opc4
+    lea bx,preg4
     call int_screen_status_y_preg
     jmp p4
 p3_inv:
     call sonido_error
     lea dx,msg_invalido
-    lea si,preg3
-    lea bx,opc3
+    lea bx,preg3
     call int_screen_status_y_preg
     jmp p3
 p3_ok:
@@ -277,37 +282,34 @@ p3_ok:
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
     lea dx,msg_correcto
-    lea si,preg4
-    lea bx,opc4
+    lea bx,preg4
     call int_screen_status_y_preg
 
-;==================== PREGUNTA 4 ======================
+; P4
 p4:
     call leer_abc_timeout_interrupcion
     cmp al,0
     je  p4_tarde
     cmp al,0FFh
     je  p4_inv
-    cmp al,[resp4]
+    cmp al,'A'
     je  p4_ok
+
     call sonido_error
     lea dx,msg_incorrecto
-    lea si,preg5
-    lea bx,opc5
+    lea bx,preg5
     call int_screen_status_y_preg
     jmp p5
 p4_tarde:
     call sonido_error
     lea dx,msg_tiempo
-    lea si,preg5
-    lea bx,opc5
+    lea bx,preg5
     call int_screen_status_y_preg
     jmp p5
 p4_inv:
     call sonido_error
     lea dx,msg_invalido
-    lea si,preg4
-    lea bx,opc4
+    lea bx,preg4
     call int_screen_status_y_preg
     jmp p4
 p4_ok:
@@ -315,41 +317,56 @@ p4_ok:
     inc byte ptr [puntaje_total]
     call actualizar_puntaje
     lea dx,msg_correcto
-    lea si,preg5
-    lea bx,opc5
+    lea bx,preg5
     call int_screen_status_y_preg
 
-;==================== PREGUNTA 5 ======================
+;------------------------------------------------------------
+; P5 (solo mouse, usando Y real para decidir A/B/C)
+;------------------------------------------------------------
 p5:
-    call leer_abc_timeout_interrupcion
-    cmp al,0
-    je  p5_tarde
-    cmp al,0FFh
-    je  p5_inv
-    cmp al,[resp5]
-    je  p5_ok
-    call sonido_error
-    lea dx,msg_incorrecto
-    jmp int_final
-p5_tarde:
-    call sonido_error
-    lea dx,msg_tiempo
-    jmp int_final
-p5_inv:
-    call sonido_error
-    lea dx,msg_invalido
-    lea si,preg5
-    lea bx,opc5
-    call int_screen_status_y_preg
-    jmp p5
+    ; usamos la librería para inicializar/mostrar/limitar mouse
+    call leer_opcion_mouse_abc      ; AL se ignora, nos importa Y
+
+    ; leer posición actual del mouse
+    mov ax, 3
+    int 33h              ; BX=botones, CX=X, DX=Y
+    mov ax, dx           ; AX = Y en píxeles
+
+    ; ¿fuera del bloque A..C?  → volver a preguntar
+    cmp ax, A_Y_TOP
+    jb  p5               ; por encima de A
+    cmp ax, C_Y_BOT
+    ja  p5               ; por debajo de C
+
+    ; ¿en la banda de B?  → correcta
+    cmp ax, B_Y_TOP
+    jb  p5_mal           ; está en A
+    cmp ax, B_Y_BOT
+    jbe p5_ok            ; dentro de B
+
+    ; si no está en B, pero está entre A_Y_TOP y C_Y_BOT,
+    ; solo queda que esté en C  → incorrecto
+    jmp p5_mal
+
 p5_ok:
-    inc bl
-    inc byte ptr [puntaje_total]
+    inc bl                          ; aciertos en esta unidad
+    inc byte ptr [puntaje_total]    ; puntaje global
     call actualizar_puntaje
     lea dx,msg_correcto
+    call imprimir_pantalla
+    jmp int_final
 
-;==================== FINAL ===========================
+p5_mal:
+    call sonido_error
+    lea dx,msg_incorrecto
+    call imprimir_pantalla
+    jmp int_final
+
+; FINAL
 int_final:
+    mov ax,2
+    int 33h
+
     call cls_azul_10h
     call actualizar_puntaje
     lea dx,msg_final
@@ -364,7 +381,6 @@ int_repro:
     call imprimir_pantalla
 int_fin:
     mov al,bl
-    pop si
     pop dx
     pop bx
     pop ax
