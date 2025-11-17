@@ -5,7 +5,7 @@
 ;       wait_key, vga_text_mode
 ;       imagenGana,  imagenPierde          ; pantalla completa
 ;       imagenGana_half, imagenPierde_half ; mini 160x100 centrada
-;       mostrarImagen, mostrarImagen_half  ; opcional (veamos.bmp)
+;       mostrarImagen, mostrarImagen_half  ; usa la de aprobado
 ;============================================================
 
 .8086
@@ -13,14 +13,13 @@
 .stack 100h
 
 .data
-filename    db 'veamos.bmp',0
-filename1   db 'aprobado.bmp',0
-filename2   db 'des.bmp',0
+; SOLO DOS NOMBRES:
+filename1   db 'aprobado.bmp',0   ; imagen cuando APRUEBA
+filename2   db 'des.bmp',0        ; imagen cuando DESAPRUEBA (ajustá al nombre real)
 
 filehandle  dw 0
 Header      db 54 dup (0)
 Palette     db 256*4 dup (0)
-db 47h,50h,54h,32h,35h
 ScrLine     db 320 dup (0)
 
 msgNF       db 'BMP no encontrado.',13,10,'$'
@@ -281,7 +280,6 @@ di_ok:
 CopyBitmap endp
 
 ;================ DIBUJO: mitad (160x100 centrado) =========
-; Downsample 2x (nearest). Copia solo filas y columnas pares.
 CopyBitmapHalf proc
     mov ax,0A000h
     mov es,ax
@@ -404,7 +402,7 @@ h_ok:
     ; *** MODO 13h ANTES DE TOCAR PALETA ***
     call GfxMode
 
-    ; Leer paleta (smart)
+    ; Leer paleta
     call ReadPalette
     jnc pal_ok
     mov dx, offset msgGEN
@@ -415,7 +413,7 @@ pal_ok:
     ; Aplicar paleta
     call CopyPal
 
-    ; Ir a bfOffBits (inicio de pixeles)  **FIX: CX:DX**
+    ; Ir a bfOffBits (inicio de pixeles)
     mov dx, word ptr Header+10   ; low
     mov cx, word ptr Header+12   ; high
     call SeekAbs
@@ -431,13 +429,11 @@ bad_fmt:
 PrepareAndValidate endp
 
 ;================ interfaz de alto nivel ====================
-; Helper para patrón común (abrir, validar, dibujar, cerrar)
 ; EN: DX=ptr filename, AL=0->full, AL=1->half
 ShowBmpByDX proc
     push ds
     push ax
 
-    ; usar DGROUP de la librería para strings
     mov  ax, @data
     mov  ds, ax
 
@@ -454,7 +450,7 @@ hdr_ok:
     jnc draw
     jmp sb_fail
 draw:
-    pop ax                 ; recupero selector de tamaño en AL
+    pop ax                 ; AL = selector de tamaño
     cmp al, 1
     je  draw_half
     call CopyBitmap
@@ -482,15 +478,16 @@ public mostrarImagen, mostrarImagen_half
 public imagenGana, imagenGana_half
 public imagenPierde, imagenPierde_half
 
+; mostrarImagen usa la de aprobado (filename1)
 mostrarImagen proc
-    mov dx, offset filename
+    mov dx, offset filename1
     xor ax, ax            ; AL=0 -> full
     call ShowBmpByDX
     ret
 mostrarImagen endp
 
 mostrarImagen_half proc
-    mov dx, offset filename
+    mov dx, offset filename1
     mov ax, 1             ; AL=1 -> half
     call ShowBmpByDX
     ret
