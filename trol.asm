@@ -2,7 +2,8 @@
 ; UNIDAD: UNIDAD DE CONTROL (UC.ASM)
 ;------------------------------------------------------------
 ; - Igual formato visual que ALU, MEMORIA e INTERRUPCIONES
-; - Timeout 10 s con INT 1Ah
+; - Preguntas 1 a 4: teclado con timeout (INT 1Ah)
+; - Pregunta 5: SOLO mouse (leer_opcion_mouse_abc)
 ; - Valida A/B/C, muestra mensaje fijo arriba
 ; - Puntaje global con HUD azul
 ;============================================================
@@ -17,6 +18,7 @@ extrn sonido_presentacion:proc
 extrn actualizar_puntaje:proc
 extrn puntaje_total:byte
 extrn cls_azul_10h:proc
+extrn leer_opcion_mouse_abc:proc   ; <<< para P5 con mouse
 
 .data
 msg_intro      db 0dh,0ah,"[UNIDAD: UNIDAD DE CONTROL]",0dh,0ah,'$'
@@ -32,29 +34,29 @@ nl             db 0dh,0ah,'$'
 
 ;==================== PREGUNTAS ==============================
 preg1 db 0dh,0ah,"1) Que funcion cumple la Unidad de Control?",0dh,0ah
-      db "A) Ejecutar calculos aritmeticos",0dh,0ah
-      db "B) Coordinar y dirigir el funcionamiento del CPU",0dh,0ah
-      db "C) Almacenar datos",0dh,0ah,'$'
+      db "A)      Ejecutar calculos aritmeticos",0dh,0ah
+      db "B)      Coordinar y dirigir el funcionamiento del CPU",0dh,0ah
+      db "C)      Almacenar datos",0dh,0ah,'$'
 
 preg2 db 0dh,0ah,"2) Que elementos controla la Unidad de Control?",0dh,0ah
-      db "A) Registros, ALU y buses",0dh,0ah
-      db "B) Solo la memoria",0dh,0ah
-      db "C) Solo las interrupciones",0dh,0ah,'$'
+      db "A)      Registros, ALU y buses",0dh,0ah
+      db "B)      Solo la memoria",0dh,0ah
+      db "C)      Solo las interrupciones",0dh,0ah,'$'
 
 preg3 db 0dh,0ah,"3) Cual es la caracteristica de la arquitectura RISC?",0dh,0ah
-      db "A) Emplea instrucciones complejas que requieren microprogramacion",0dh,0ah
-      db "B) Utiliza instrucciones simples que se ejecutan en un solo ciclo de reloj",0dh,0ah
-      db "C) Prioriza la compatibilidad con software heredado sobre la eficiencia",0dh,0ah,'$'
+      db "A)      Emplea instrucciones complejas que requieren microprogramacion",0dh,0ah
+      db "B)      Utiliza instrucciones simples que se ejecutan en un solo ciclo de reloj",0dh,0ah
+      db "C)      Prioriza la compatibilidad con software heredado sobre la eficiencia",0dh,0ah,'$'
 
 preg4 db 0dh,0ah,"4) Cual es el orden del ciclo de instruccion correcto?",0dh,0ah
-      db "A) IF, ID, OF, EX",0dh,0ah
-      db "B) ID, IF, OF, EX",0dh,0ah
-      db "C) IF, ID, DX, EX",0dh,0ah,'$'
+      db "A)      IF, ID, OF, EX",0dh,0ah
+      db "B)      ID, IF, OF, EX",0dh,0ah
+      db "C)      IF, ID, DX, EX",0dh,0ah,'$'
 
 preg5 db 0dh,0ah,"5) Donde se guarda la direccion de la proxima instruccion a ejecutar?",0dh,0ah
-      db "A) En el registro IP",0dh,0ah
-      db "B) En el registro AX",0dh,0ah
-      db "C) En la ALU",0dh,0ah,'$'
+      db "A)      En el registro IP",0dh,0ah
+      db "B)      En el registro AX",0dh,0ah
+      db "C)      En la ALU",0dh,0ah,'$'
 
 .code
 ;============================================================
@@ -65,18 +67,22 @@ uc_screen_next_with_status proc
     push ax
     push bx
     push dx
+
     call cls_azul_10h
     call actualizar_puntaje
     lea dx,msg_intro
     call imprimir_pantalla
     lea dx,nl
     call imprimir_pantalla
+
     pop dx
     call imprimir_pantalla
     lea dx,nl
     call imprimir_pantalla
+
     mov dx,bx
     call imprimir_pantalla
+
     pop bx
     pop ax
     ret
@@ -164,6 +170,7 @@ p1:
     je  p1_inv
     cmp al,'B'
     je  p1_ok
+
     call sonido_error
     lea dx,msg_incorrecto
     lea bx,preg2
@@ -198,6 +205,7 @@ p2:
     je  p2_inv
     cmp al,'A'
     je  p2_ok
+
     call sonido_error
     lea dx,msg_incorrecto
     lea bx,preg3
@@ -232,6 +240,7 @@ p3:
     je  p3_inv
     cmp al,'B'
     je  p3_ok
+
     call sonido_error
     lea dx,msg_incorrecto
     lea bx,preg4
@@ -266,6 +275,7 @@ p4:
     je  p4_inv
     cmp al,'A'
     je  p4_ok
+
     call sonido_error
     lea dx,msg_incorrecto
     lea bx,preg5
@@ -291,36 +301,37 @@ p4_ok:
     lea bx,preg5
     call uc_screen_next_with_status
 
-;==================== PREGUNTA 5 ======================
+;==================== PREGUNTA 5 (SOLO MOUSE) =================
+; Pregunta 5 ya quedó en pantalla por uc_screen_next_with_status
+
 p5:
-    call leer_abc_timeout_control
-    cmp al,0
-    je  p5_tarde
-    cmp al,0FFh
-    je  p5_inv
+    ; Leer respuesta con el mouse
+    call leer_opcion_mouse_abc      ; AL = 'A'/'B'/'C' (o teclado fallback)
+
+p5_eval:
     cmp al,'A'
-    je  p5_ok
-    call sonido_error
-    lea dx,msg_incorrecto
-    jmp uc_final
-p5_tarde:
-    call sonido_error
-    lea dx,msg_tiempo
-    jmp uc_final
-p5_inv:
-    call sonido_error
-    lea dx,msg_invalido
-    lea bx,preg5
-    call uc_screen_next_with_status
-    jmp p5
+    jne p5_mal
+
 p5_ok:
-    inc bl
-    inc byte ptr [puntaje_total]
+    inc bl                          ; aciertos en esta unidad
+    inc byte ptr [puntaje_total]    ; puntaje global
     call actualizar_puntaje
     lea dx,msg_correcto
+    call imprimir_pantalla
+    jmp uc_final
+
+p5_mal:
+    call sonido_error
+    lea dx,msg_incorrecto
+    call imprimir_pantalla
+    jmp uc_final
 
 ;==================== RESULTADO FINAL ======================
 uc_final:
+    ; Por las dudas, ocultar puntero del mouse si quedó en pantalla
+    mov ax, 2
+    int 33h
+
     call cls_azul_10h
     call actualizar_puntaje
     lea dx,msg_final
