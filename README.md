@@ -40,6 +40,7 @@ Cada módulo presenta al usuario una serie de **preguntas de opción múltiple (
 ✅ **Librerías externas** organizadas modularmente.
 ✅ **Compatibilidad total con TASM/TLINK y DOSBox**.
 ✅ **Posibilidad de extensión a modo gráfico (13h)** para mostrar imágenes `.BMP` al ganar o perder.
+✅ **Creacion de nuestras propias interruciones , intro pantalla y melodia ganadaroa de aprobacion (60h, y 62h)**
 
 ---
 1️⃣ **Guía técnica (TASM, TLINK y ejecución)**
@@ -72,10 +73,17 @@ mus.ASM / error.ASM → Efectos sonoros
 alu.ASM        → Juego sobre Unidad Aritmético-Lógica
 mem.ASM        → Juego sobre Memoria Principal
 int.ASM        → Juego sobre Interrupciones
-trol.ASM         → Juego sobre Unidad de Control
+trol.ASM       → Juego sobre Unidad de Control
 ea.ASM         → Juego sobre Entradas/Salidas
-color.ASM            → Cambio de color en pantalla
-r22a.asm  → convertidor de regto ascuii
+color.ASM      → Cambio de color en pantalla
+r22a.asm       → convertidor de regto ascuii
+intro.asm      → Creacion de .com int60h pantalla de carga intro
+punt.asm       → Creacion de barra de puntaje de preguntas correctas
+bmp2.asm       → Creacion de carga para imagen.bmp
+win.asm        → Creacion de .com int 62h sonido aprobado melodia
+conta.asm      → Creacion de Lectura solo A/B/C con timpofuera de 10 s
+tiempo.asm     →   Tiempo de espera en las preguntas
+mouse.asm      → Creacion de libreria con mouse que es int 33h 
 ```
 
 ---
@@ -104,6 +112,13 @@ tasm jugar_uc.asm
 tasm jugar_io.asm
 tasm color.asm
 tasm r22a.asm
+tasm punt.asm
+tasm limpiar.asm
+tasm bmp2.asm
+tasm conta.asm
+tasm tiempo.asm
+tasm mouse.asm
+
 ```
 
 Cada uno debe generar su respectivo `.OBJ` sin errores.
@@ -111,7 +126,7 @@ Cada uno debe generar su respectivo `.OBJ` sin errores.
 3️⃣ **Enlazar todo el programa principal:**
 
 ```dos
-tlink tp.obj imp.obj leer_opcion_menu.obj sonido_presentacion.obj sonido_error.obj jugar_mem.obj jugar_alu.obj jugar_int.obj jugar_uc.obj jugar_io.obj color.obj r22a.obj
+tlink tp.obj imp.obj leer_opcion_menu.obj sonido_presentacion.obj sonido_error.obj jugar_mem.obj jugar_alu.obj jugar_int.obj jugar_uc.obj jugar_io.obj color.obj r22a.obj punt.obj limpiar.obj bmp2.obj conta.obj tiempo.obj mouse.obj 
 ```
 
 Esto produce el ejecutable:
