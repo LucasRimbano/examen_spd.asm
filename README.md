@@ -176,3 +176,5 @@ tp.exe
 Así, con solo escribir `TP`, se ejecuta la intro y el juego completo.
 
 ---
+Presentacion de simulacion examen:
+<img width="1114" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 47 47 a  m" src="https://github.com/user-attachments/assets/a1de3db6-8cab-4a3b-b258-6f21790e19b6" />
