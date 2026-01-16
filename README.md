@@ -1,3 +1,4 @@
+
 ## 🧠 2️⃣ INTRODUCCIÓN DEL PROYECTO
 
 **Trabajo Práctico Final – Simulacro de Parcial SPD (Sistemas con Procesamiento de Datos)**
@@ -175,6 +176,15 @@ tp.exe
 
 Así, con solo escribir `TP`, se ejecuta la intro y el juego completo.
 
----
+
 Presentacion de simulacion examen:
 <img width="1114" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 47 47 a  m" src="https://github.com/user-attachments/assets/a1de3db6-8cab-4a3b-b258-6f21790e19b6" />
+Ultima pregunta de cada unidad da la opcion de elegir con mouse:
+---<img width="1119" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 48 41 a  m" src="https://github.com/user-attachments/assets/72e71ae9-3479-41ae-ba17-a3bf08d61aee" />
+Primera pregunta de una unidad :
+<img width="1119" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 48 13 a  m" src="https://github.com/user-attachments/assets/644457b8-a0f1-4fa7-ab56-43430d7bca58" />
+Imagen de desaprobado:
+<img width="1119" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 49 09 a  m" src="https://github.com/user-attachments/assets/44cfd46c-eb99-4b89-ad7b-75147f2e3aad" />
+Imagen de aprobado:
+[aprobado.bmp](https://github.com/user-attachments/files/24659053/aprobado.bmp)
+
