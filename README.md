@@ -187,4 +187,4 @@ Imagen de desaprobado:
 <img width="1119" height="725" alt="Captura de pantalla 2026-01-16 a la(s) 12 49 09 a  m" src="https://github.com/user-attachments/assets/44cfd46c-eb99-4b89-ad7b-75147f2e3aad" />
 Imagen de aprobado:
 
-<img width="306" height="185" alt="Captura de pantalla 2026-01-16 a la(s) 12 54 27 a  m" src="https://github.com/user-attachments/assets/ffe5e4c4-e6d8-40c4-8078-409c063bd2d8" />
+<img width="1120" height="724" alt="Captura de pantalla 2026-01-16 a la(s) 12 58 23 a  m" src="https://github.com/user-attachments/assets/084f5e03-d37f-41be-b0c8-11cda1161a2f" />
